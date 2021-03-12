@@ -6,7 +6,7 @@
 """
 
 import rasterio
-import matplotlib.pyplot as plt
+from rasterio.warp import calculate_default_transform, reproject, Resampling
 
 # %%
 
@@ -37,6 +37,28 @@ with rasterio.open(output_file, 'w+', **meta) as dst:
         
 # %% 
         
+# reproject Svalbard glaciers to WGS84
+output_file_reproj = 'C:/Users/Pascal/Desktop/UZH_2020/ArcticHackathon/analyses/'\
+        + 'ESA_land_classes/Svalbard_glaciers_wgs84.tif'
+        
+dst_crs = {'init': 'EPSG:4326'}
+
+with rasterio.open(output_file) as src:
+    transform, width, height = calculate_default_transform(src.crs, dst_crs, 
+                                                           src.width, 
+                                                           src.height, 
+                                                           *src.bounds)
+    kwargs = src.meta.copy()
+    kwargs.update({'crs': dst_crs,'transform': transform, 'width': width,'height': height})
+
+    with rasterio.open(output_file_reproj, 'w', **kwargs) as dst:
+            reproject(source=rasterio.band(src, 1),destination=rasterio.band(dst, 1),
+                src_transform=src.transform,
+                src_crs=src.crs,
+                dst_transform=transform,
+                dst_crs=dst_crs,
+                resampling=Resampling.nearest)
+            
 # %% 
         
 # create shapefile out of raster
