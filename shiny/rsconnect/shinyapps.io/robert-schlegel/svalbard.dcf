@@ -5,8 +5,8 @@ account: robert-schlegel
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 3782932
-bundleId: 4337314
+bundleId: 4337495
 url: https://robert-schlegel.shinyapps.io/svalbard/
-when: 1615580072.7169
+when: 1615583378.30865
 asMultiple: FALSE
 asStatic: FALSE
