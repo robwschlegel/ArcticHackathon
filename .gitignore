@@ -37,3 +37,7 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+# Large R data files
+data/Oliver_2018.Rds
+data/MHW_cat_pixel_*.Rds
