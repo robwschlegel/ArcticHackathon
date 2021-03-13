@@ -91,7 +91,7 @@ map_base <- ggplot2::fortify(maps::map(fill = TRUE, col = "grey80", plot = FALSE
 ui <- dashboardPage(skin = "blue",
                     
                     # The app title
-                    dashboardHeader(disable = TRUE),
+                    dashboardHeader(disable = FALSE, title = "Troubled waters: environmental change around Svalbard"),
                     
                     # The primary options
                     dashboardSidebar(
@@ -121,9 +121,10 @@ ui <- dashboardPage(skin = "blue",
                                 # bootstrapPage(
                                 #     tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
                                 #     leafletOutput("map", width = "100%", height = "100%"))),
-                                fluidRow(box(plotlyOutput("map", width = '100%', height = '600px'), width = 12, height = '600px', type = 6, color = "#b0b7be"),
+                                fluidRow(box(plotlyOutput("map", width = '100%', height = '580px'), width = 12, height = '600px', type = 6, color = "#b0b7be"),
                                          width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE),
-                                fluidRow(box(plotlyOutput("ts", width = '100%', height = '200px'), width = 12, height = '200px', type = 6, color = "#b0b7be"),
+                                # fluidRow(tableOutput("maply_click")),
+                                fluidRow(box(plotlyOutput("ts", width = '100%', height = '180px'), width = 12, height = '200px', type = 6, color = "#b0b7be"),
                                          width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE)),
                         
                         
@@ -187,16 +188,7 @@ server <- function(input, output, session) {
                                  multiple = FALSE, selected = "Trend")
   
   # Specific layer for selection
-  # picker_layer <- pickerInput(inputId = "layer", label = "Data layers:",
-  #                            choices = list(
-  #                              Trend = c("Trend: SST", "Trend: sea ice cover", "Trend: T2M", "Trend: MSLP", "Trend: snow melt"),
-  #                              Mean = c("Mean: SST", "Mean: sea ice cover", "Mean: T2M", "Mean: MSLP", "Mean: snow melt"),
-  #                              Anomaly = c("Anomaly: SST", "Anomaly: sea ice cover", "Anomaly: T2M", "Anomaly: MSLP", "Anomaly: snow melt")
-  #                            ),
-  #                            multiple = FALSE,
-  #                            options = list(size = 6),
-  #                            selected = "Anomaly: SST")
-  picker_layer <- pickerInput(inputId = "layer", label = "Data layers:",
+  picker_layer <- pickerInput(inputId = "layer", label = "Data layer:",
                               choices = unique(ERA5_ALL$name),
                               multiple = FALSE,
                               options = list(size = 6),
@@ -214,11 +206,11 @@ server <- function(input, output, session) {
   # The high level UI controls
   output$sidebar_controls_cat <- renderUI({
     if(input$comparisonMenu == "map"){
-      sidebarMenu(picker_category, picker_layer)
+      sidebarMenu(switch_glacier, picker_category, picker_layer)
     } else if(input$comparisonMenu == "about"){
       # Intentionally empty
     } else{
-      # sidebarMenu()
+      # Intentionally empty
     }
   })
   
@@ -226,25 +218,14 @@ server <- function(input, output, session) {
   output$sidebar_controls_other <- renderUI({
     req(input$category)
     if(input$category == "Trend"){
-      sidebarMenu(switch_glacier)
-    } else {
-      sidebarMenu(picker_year, switch_glacier)
+    } else if(input$category %in% c("Mean", "Anomaly")){
+      sidebarMenu(picker_year)
+    } else { 
     }
   })
   
   
   # Reactive values ---------------------------------------------------------
-  
-  # Years for selection
-  # yearChoices <- reactiveValues({
-  #   req(input$category)
-  #   if(input$category == "Trend") {
-  #     yearChoices <- NA
-  #   } else {
-  #     yearChoices <- seq(min(ERA5_ALL$year, na.rm = T), max(ERA5_ALL$year, na.rm = T))
-  #   }
-  #   return(yearChoices)
-  # })
   
   # Reactive expression for the data subsetted to what the user selected
   baseData <- reactive({
@@ -257,7 +238,9 @@ server <- function(input, output, session) {
       if(input$category %in% c("Mean", "Anomaly")){
         req(input$year)
         baseData <- baseData %>% 
-          filter(year == input$year)
+          dplyr::filter(year == input$year) %>% 
+          dplyr::select(lon, lat, year, name, value) %>% 
+          na.omit()
       }
     return(baseData)
   })
@@ -269,6 +252,28 @@ server <- function(input, output, session) {
   output$map <- renderPlotly({
     req(input$layer); req(input$category); req(!is.null(input$glacier))
     
+    # Prep value labels
+    if(input$layer %in% c("T2m", "SST")){
+      unit_label <- " (°C)"
+      dec_label <- " (°C/dec)"
+    } else if(input$layer == "sea ice cover"){
+      unit_label <- " (%)"
+      dec_label <- " (%/dec)"
+    } else if(input$layer == "MSLP"){
+      unit_label <- " (hPa)"
+      dec_label <- " (hPa/dec)"
+    } else if(input$layer == "snow melt"){
+      unit_label <- " (mm)"
+      dec_label <- " (mm/dec)"
+    }
+    
+    # Legend label
+    if(input$category == "Trend"){
+      legend_label <- dec_label
+    } else {
+      legend_label <- unit_label
+    }
+    
     # Prep data
     baseData <- baseData()
     
@@ -277,18 +282,18 @@ server <- function(input, output, session) {
       geom_polygon(data = map_base, aes(group = group, text = NULL), colour = "black", fill = "grey90", alpha = 0.3) +
       geom_tile(aes(fill = value, text = value), alpha = 0.8) +
       coord_equal(xlim = sval_bbox[1:2], ylim = sval_bbox[3:4], expand = F, ratio = 2) +
-      labs(x = NULL, y = NULL)
+      labs(x = "Longitude (°E)", y = "Latitude (°N)") +
+      theme(panel.border = element_rect(fill = NA, colour = "black"))
+    
+    # Add colour palette accordingly
     if(input$category %in% c("Trend", "Anomaly")) {
       map_plot <- map_prep +
         # scale_fill_gradient2(low = "blue", high = "red") # For testing...
-        scale_fill_gradient2(input$layer, low = "blue", high = "red")
+        scale_fill_gradient2(paste0(input$layer,"\n",legend_label), low = "blue", high = "red")
     } else {
       map_plot <- map_prep +
-        scale_fill_viridis_c(input$layer)
+        scale_fill_viridis_c(paste0(input$layer,"\n",legend_label))
     }
-    # if(input$layer %in% c("T2m", "MSLP")){
-    #   map_plot <- map_plot + geom_tile(data = baseData, aes(fill = value, text = value), alpha = 0.8)
-    # }
     
     # Add glacier layer
     if(input$glacier){
@@ -296,7 +301,7 @@ server <- function(input, output, session) {
     }
 
     # Plotly output
-    ggplotly(map_plot, tooltip = "text", dynamicTicks = F) %>% 
+    ggplotly(map_plot, tooltip = "text", dynamicTicks = F, source = "map_ly") %>% 
       style(hoverinfo = "skip", traces = 0)
   })
   
@@ -305,25 +310,69 @@ server <- function(input, output, session) {
   
   # The TS plot
   output$ts <- renderPlotly({
-    req(input$year); req(input$layer); req(input$category)
+    req(input$layer)
     
-    # Prep data
-    pixelData <- ERA5_ALL %>%
-      # filter(name == "SST", cat == "Mean") %>%  # For testing...
-      filter(name == input$layer,
-             cat == input$category) %>%
-      group_by(year) %>% 
-      summarise(value = mean(value, na.rm = T), .groups = "drop")
+    # Prep value labels
+    if(input$layer %in% c("T2m", "SST")){
+      unit_label <- " (°C)"
+      dec_label <- " (°C/dec)"
+    } else if(input$layer == "sea ice cover"){
+      unit_label <- " (%)"
+      dec_label <- " (%/dec)"
+    } else if(input$layer == "MSLP"){
+      unit_label <- " (hPa)"
+      dec_label <- " (hPa/dec)"
+    } else if(input$layer == "snow melt"){
+      unit_label <- " (mm)"
+      dec_label <- " (mm/dec)"
+    }
     
+    # Click data
+    event.data <- event_data(event = "plotly_click", source = "map_ly")
+
     # Create plot
-    ts_plot <- ggplot(data = pixelData, aes(x = year, y = value)) +
-      geom_line() +
-      geom_point(aes(fill = value, text = value), shape = 21) +
-      # labs(x = NULL, y = "Name") # For testing...
-      labs(x = NULL, y = input$layer)
-    
+    if (is.null(event.data)) {
+      # Blank plot
+      ts_plot <- ggplot() +
+        geom_blank() +
+        geom_text(aes(x = 0, y = 0, label = "Click on a map pixel to see the annual time series!")) +
+        theme_void()
+    } else {
+      # input <- data.frame(layer = "T2m") # tester...
+      # event.data <- data.frame(x = 30, y = 75) # Tester...
+      # Time series data
+      pixelData <- ERA5_ALL %>%
+        # data.frame() %>% 
+        dplyr::filter(name == input$layer,
+               cat == "Anomaly",
+               lon == event.data$x[1],
+               lat == event.data$y[1])
+      
+      # Linear model stats
+      slopeData <- ERA5_ALL %>%
+        # data.frame() %>% 
+        dplyr::filter(name == input$layer[1],
+                      cat == "Trend",
+                      lon == event.data$x[1],
+                      lat == event.data$y[1]) %>% 
+        mutate(pvalue = case_when(pvalue == 0 ~ "p <0.01",
+                                  TRUE ~ paste0("p = ",pvalue)),
+               rvalue = paste0("R2 = ",rvalue),
+               value = paste0("slope = ",value),
+               text = paste0(value,dec_label,"\n",pvalue,"\n",rvalue))
+      
+      # Line plot
+      ts_plot <- ggplot(data = pixelData, aes(x = year, y = value)) +
+        geom_line(show.legend = F) +
+        geom_point(aes(fill = value, text = value), shape = 21, show.legend = F) +
+        geom_smooth(method = "lm", se = F, aes(text = slopeData$text[1])) +
+        coord_cartesian(expand = F) +
+        labs(x = NULL, y = paste0(input$layer,"\n",unit_label)) +
+        theme(panel.border = element_rect(fill = NA, colour = "black"))
+    }
+
     # Plotly output
-    ggplotly(ts_plot, tooltip = "text", dynamicTicks = F)# %>% 
+    ggplotly(ts_plot, tooltip = "text", dynamicTicks = F) #%>% 
       # style(hoverinfo = "skip", traces = 0)
   })
   

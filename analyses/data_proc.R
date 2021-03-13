@@ -41,8 +41,10 @@ ERA5_anom_smol <- ERA5_anom %>%
          sst = round(sst, 2),
          siconc = round(siconc, 2),
          msl = round(msl, 2),
-         smlt = round(smlt, 2),
-         lon = lon-0.1) %>% 
+         smlt = round(smlt*100*100, 4),
+         lon = lon-0.1,
+         lon = round(lon, 2),
+         lat = round(lat, 2)) %>% 
   dplyr::select(lon, lat, year, t2m, sst, siconc, msl, smlt) %>% 
   `colnames<-`(c("lon", "lat", "year", "T2m", "SST", "sea ice cover", "MSLP", "snow melt")) #%>% 
   # na.omit() 
@@ -57,8 +59,10 @@ ERA5_mean_smol <- ERA5_mean %>%
          sst = round(sst-273.15, 2),
          siconc = round(siconc, 2),
          msl = round(msl, 2),
-         smlt = round(smlt, 2),
-         lon = lon-0.1) %>% 
+         smlt = round(smlt*100*100, 4),
+         lon = lon-0.1,
+         lon = round(lon, 2),
+         lat = round(lat, 2)) %>% 
   dplyr::select(lon, lat, year, t2m, sst, siconc, msl, smlt) %>% 
   `colnames<-`(c("lon", "lat", "year", "T2m", "SST", "sea ice cover", "MSLP", "snow melt")) #%>% 
   # na.omit() 
@@ -69,12 +73,12 @@ ERA5_trend <- read_csv("../data_for_shiny/ERA5_trends.csv")
 ERA5_trend_smol <- ERA5_trend %>% 
   dplyr::rename(lon = longitude, lat = latitude, name = variable, value = slope) %>% 
   filter(name %in% c("t2m", "sst", "siconc", "msl", "smlt")) %>% 
-  mutate(value = round(value*10, 2),
+  mutate(value = ifelse(name == "smlt", round(value*10*100*100, 4), round(value*10, 4)),
          rvalue = round(rvalue, 2),
          pvalue = round(pvalue, 2),
-         # pvalue = case_when(pvalue == 0 ~ "p <0.01",
-                            # TRUE ~ paste0("p = ",pvalue)),
-         lon = lon-0.1) %>% 
+         lon = lon-0.1,
+         lon = round(lon, 2),
+         lat = round(lat, 2)) %>% 
   dplyr::select(lon, lat, name, value, pvalue, rvalue) %>%
   mutate(name = case_when(name == "t2m" ~ "T2m",
                           name == "sst" ~ "SST",
