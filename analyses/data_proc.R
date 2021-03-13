@@ -125,19 +125,14 @@ ERA5_anom_smol %>%
 # Station data ------------------------------------------------------------
 
 # Airport data
-station_airport <- read_csv("../data_for_shiny/meto_stations/Svalbard_Airport.csv") %>% 
+station_airport <- read.csv("../data_for_shiny/meto_stations/Svalbard_Airport.csv") %>% 
   dplyr::select(YEAR:DEC) %>% 
   pivot_longer(JAN:DEC, names_to = "month", values_to = "T2m") %>% 
   filter(T2m < 30)
 
 # Ny Alesund data
-station_ny <- read_csv("../data_for_shiny/meto_stations/ny_alesund.csv") %>% 
+station_ny <- read.csv("../data_for_shiny/meto_stations/ny_alesund.csv") %>% 
   dplyr::select(YEAR:DEC) %>% 
   pivot_longer(JAN:DEC, names_to = "month", values_to = "T2m") %>% 
   filter(T2m < 30)
 
-# Airport data
-station_airport <- read_csv("../data_for_shiny/meto_stations/Svalbard_Airport.csv") %>% 
-  dplyr::select(YEAR:DEC) %>% 
-  pivot_longer(JAN:DEC, names_to = "month", values_to = "T2m") %>% 
-  filter(T2m < 30)

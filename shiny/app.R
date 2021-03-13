@@ -10,6 +10,7 @@ library(shinycssloaders)
 library(shinyWidgets)
 library(shinyBS)
 library(plotly)
+library(DT)
 library(dplyr)
 library(tidyr)
 library(lubridate)
@@ -65,16 +66,36 @@ map_base_low <- ggplot2::fortify(maps::map(fill = TRUE, plot = FALSE)) %>%
 map_base_hi <- readRDS("data/map_base.Rds")
 
 # Popup coordinates
-pop_coords <- data.frame(site = c("Airport"),
-                         lon = c(15.4633742),
-                         lat = c(78.2460841))
+pop_coords <- data.frame(site = c("Airport", "Ny Alesund"),
+                         lon = c(15.4633742, 11.8695311),
+                         lat = c(78.2460841, 78.9237485))
+
+## Station data
+# Airport data
+station_airport <- read.csv("data/Svalbard_Airport.csv") %>% 
+  dplyr::select(YEAR:DEC) %>% 
+  pivot_longer(JAN:DEC, names_to = "month", values_to = "T2m") %>% 
+  filter(T2m < 30) %>% 
+  mutate(site = "Airport",
+         date = paste0(YEAR,"-",month,"-01"),
+         date = as.Date(date, format = "%Y-%B-%d"))
+
+# Ny Alesund data
+station_ny <- read.csv("data/ny_alesund.csv") %>% 
+  dplyr::select(YEAR:DEC) %>% 
+  pivot_longer(JAN:DEC, names_to = "month", values_to = "T2m") %>% 
+  filter(T2m < 30) %>% 
+  mutate(site = "Ny Alesund",
+         date = paste0(YEAR,"-",month,"-01"),
+         date = as.Date(date, format = "%Y-%B-%d"))
 
 # Test bit
 df2 <- data.frame(x = c(rep('a', 10), rep('b', 10)),
                   y = c(rnorm(10), rnorm(10, 3, 1)))
 
 # Picture URLs
-src_1 <-  "https://assets.vogue.com/photos/5a8a3be67cea34278b66789d/master/w_1600%2Cc_limit/02-travel-guide-to-svalbard-islands-norway-north-pole.jpg"
+src_airport <- "https://upload.wikimedia.org/wikipedia/commons/8/8d/Svalbard_Airport%2C_Longyear_1.jpg"
+src_ny <- "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Ny-%C3%85lesund_2013_06_07_3603.jpg/1200px-Ny-%C3%85lesund_2013_06_07_3603.jpg"
 
 
 # UI ----------------------------------------------------------------------
@@ -82,7 +103,7 @@ src_1 <-  "https://assets.vogue.com/photos/5a8a3be67cea34278b66789d/master/w_160
 ui <- dashboardPage(skin = "blue",
                     
                     # The app title
-                    dashboardHeader(disable = FALSE, title = "Map the Science - Svalbard"),
+                    dashboardHeader(disable = FALSE, title = "Map the Science"),
                     
                     # The primary options
                     dashboardSidebar(
@@ -122,17 +143,106 @@ ui <- dashboardPage(skin = "blue",
                         tabItem(tabName = "about", 
                                 fluidPage(
                                   column(12,
-                                         h2(tags$b("About")),
-                                         p("This shiny app is designed to allow one to quickly and easily see what the trends in environmental change
-                                           are around Svalbard. Clicking on a pixel when bring up an annual time series for further investigation.
-                                           In the control panel on the left one may select what category of data one wants, the variable, and the year.
-                                           If one is visualising trend data there will be no year to select."),
-                                         # h2(tags$b("Map")),
-                                         # p("The 'Map' tab shows Svalbard with.")
-                                         h2(tags$b("Acknowledgements")),
-                                         p("This app was built in part to serve as a proof of concept for how to easily and interactively visualise
-                                           environmental change in the Arctic (Svalbard) as part of the #HackTheArctic event. Contributions to this 
-                                           app represent work that is of interest towards the deliverables for...")
+                                         h2(tags$b("Documentation")),
+                                         h3(tags$b("Contributors")),
+                                         p(tags$div(
+                                           tags$ul(
+                                             tags$li("Robert Schlegel (@FACEITArctic, @ChocTeamLov @IMEV_mer): GUI"),
+                                             tags$li("Adrien Wehrlé (University of Zurich): Data analysis")
+                                           )
+                                           )
+                                         ),
+                                         h3(tags$b("Graphical user interface (GUI)")),
+                                         p("There are many options in the top-right corner of the map, such as : resetting the axes, 
+                                         zooming in and out or scaling automatically. The current map can also be downloaded as a .png file.
+                                         Hovering over the map with the mouse will display the values in the pixels. By left-clicking 
+                                         a given pixel the time series of annual means will be plotted and analysed through a linear regression.
+                                         The slope, correlation value, and p-value will appear by hovering over the blue line."),
+                                         p("For the individual controls in the panel on the left:",
+                                         tags$div(
+                                             tags$ul(
+                                               tags$li("Category: choose one of the three statistics presented in the Data Analysis section."),
+                                               tags$li("Data layer: choose one of the variables presented in the Datasets section. "),
+                                               tags$li("Glacier layer: activate the mask for permanent snow and ice."),
+                                               tags$li("Station layer: activate the visualisation of time series at weather station locations."),
+                                               tags$li("Time evolution: move the scroll button to visualise the evolution of the selected variable and analysis.")
+                                             )
+                                           )
+                                         ),
+                                         h3(tags$b("Data Analysis")),
+                                         p("The variables presented below are visualised through three main statistics:",
+                                           tags$div(
+                                             tags$ul(
+                                               tags$li("Annual means "),
+                                               tags$li("Anomaly from 1979-2000 mean"),
+                                               tags$li("1979-2021 trend")
+                                             )
+                                           )
+                                         ),
+                                         h3(tags$b("Datasets")),
+                                         h4(tags$b("Raster data")),
+                                         p("ECMWF Re-Analysis (ERA5; 1979-2020, 25km resolution, annual means):",
+                                           tags$div(
+                                             tags$ul(
+                                               tags$li("2-meter air temperature (°C)"),
+                                               tags$li("Sea surface temperature(°C)"),
+                                               tags$li("Sea ice cover (%) "),
+                                               tags$li("Mean sea level pressure (hPa)"),
+                                               tags$li("Snow melt (m of water equivalent)")
+                                               )
+                                             ),
+                                           " CryoSat-2 and Envisat products (2002-2021, 25km resolution, monthly means)",
+                                           tags$div(
+                                             tags$ul(
+                                               tags$li("Sea ice thickness (m)")
+                                             )
+                                           )
+                                         ),
+                                         h4(tags$b("Vector data")),
+                                         p("European Space Agency (ESA) Climate Change Initiative (CCI) land cover products (2018, 250m resolution):",
+                                           tags$div(
+                                             tags$ul(
+                                               tags$li("Permanent snow and ice mask"),
+                                               tags$li("Coastline ")
+                                             )
+                                           ),
+                                           "Sentinel-2 and Landsat-8 products (2008-2020, 30m resolution):",
+                                           tags$div(
+                                             tags$ul(
+                                               tags$li("Annual frontlines of marine-terminating glaciers")
+                                             )
+                                           )
+                                         ),
+                                         h4(tags$b("Point data")),
+                                         p("Global Historical Climatology Network (GHCN; 1932-2021; monthly means):",
+                                           tags$div(
+                                             tags$ul(
+                                               tags$li("2-meter air temperature (°C)")
+                                             )
+                                           ),
+                                           "High Arctic climatological dataset of the Polish Polar Station Hornsund (1979-2018, daily means):",
+                                           tags$div(
+                                             tags$ul(
+                                               tags$li("2-meter air temperature (°C)"),
+                                               tags$li("Relative humidity (%)"),
+                                               tags$li("Precipitation (mm)"),
+                                             )
+                                           )
+                                         ),
+                                         h3(tags$b("References")),
+                                         p("Copernicus Climate Change Service (C3S) (2017): ERA5: Fifth generation of ECMWF atmospheric reanalyses 
+                                           of the global climate . Copernicus Climate Change Service Climate Data Store (CDS), March 12 2021. 
+                                           https://cds.climate.copernicus.eu/cdsapp#!/home"),
+                                         p("ESA. Land Cover CCI Product User Guide Version 2. Tech. Rep. (2017). 
+                                           Available at: maps.elie.ucl.ac.be/CCI/viewer/download/ESACCI-LC-Ph2-PUGv2_2.0.pdf"),
+                                         p("ESA Sea Ice CCI project team; Sandven, S. (2016): ESA Sea Ice Climate Change Initiative (Sea Ice CCI) Dataset Collection. 
+                                           Centre for Environmental Data Analysis, date of citation. http://catalogue.ceda.ac.uk/uuid/5e789087d4e847308a39b3fe5b26e281"),
+                                         p("Menne, M.J., C.N. Williams, B.E. Gleason, J.J. Rennie, and J.H. Lawrimore, 2018: The Global Historical 
+                                           Climatology Network Monthly Temperature Dataset, Version 4. J. Climate, 31, 98359854, doi:doi.org/10.1175/JCLI-D-18-0094.1."),
+                                         p("Moholdt, G., Maton, J., Majerska, M., & Kohler, J. (2021). Annual frontlines of marine-terminating 
+                                           glaciers on Svalbard [Data set]. Norwegian Polar Institute. https://doi.org/10.21334/npolar.2021.d60a919a"),
+                                         p("Wawrzyniak, Tomasz; Osuch, Marzena (2019): A consistent High Arctic climatological dataset (1979-2018) of the Polish Polar 
+                                           Station Hornsund (SW Spitsbergen, Svalbard). PANGAEA, https://doi.org/10.1594/PANGAEA.909042")
                                   )
                                 )
                         )
@@ -206,36 +316,71 @@ server <- function(input, output, session) {
 
   # Images ------------------------------------------------------------------
 
-  output$picture_1 <- renderText({c('<img src="',src_1,'" width=400px>')})
+  output$picture_airport <- renderText({c('<img src="',src_airport,'" width=600px>')})
+  output$picture_ny <- renderText({c('<img src="',src_ny,'" width=600px>')})
   
 
   # Render Modal ------------------------------------------------------------
   
   # Observe to open modal
   observeEvent(event_data("plotly_click", source = "map_ly"), {
+    
+    # Collect click info
     event.data <- event_data("plotly_click", source = "map_ly")
+    
+    # Begin modal process
     if(event.data$curveNumber[1] == 2){
-      # shinyBS::toggleModal(session, modalId = "modal", toggle = "open")
+      
+      # Time series data
+      modalData <- modalData()
+      
+      # Wide for table
+      modalDataWide <- modalData %>% 
+        dplyr::select(YEAR, month, T2m) %>%
+        pivot_wider(names_from = month, values_from = T2m) %>% 
+        dplyr::select(YEAR, toupper(month.abb))
+      
+      # Prep photo link
+      if(modalData$site[1] == "Airport"){
+        modal_photo <- "picture_airport"
+      } else if(modalData$site[1] == "Ny Alesund"){
+        modal_photo <- "picture_ny"
+      }
+      
+      # The modal
       showModal(
-        modalDialog(size = "l",
+        modalDialog(size = "l", title = modalData$site[1],
                     fluidPage(
                       tabsetPanel(
                         tabPanel(title = "Time series",
                                  br(),
                                  renderPlotly({
-                                   plot_ly(df2, x = ~x, y = ~y, type = 'box')
-                                   }),
-                                 hr()),
+                                   ggplotly(
+                                     modalData %>% 
+                                       ggplot(aes(x = date, y = T2m)) +
+                                       geom_line() +
+                                       geom_point() +
+                                       geom_smooth(method = "lm", se = F) +
+                                       scale_x_date(expand = c(0, 0)) +
+                                       labs(x = NULL, y = "T2m (°C)") +
+                                       theme(panel.border = element_rect(fill = NA, colour = "black"))
+                                     )
+                                   })
+                        ),
                         tabPanel(title = "Photos",
                                  br(),
-                                 htmlOutput("picture_1"),
-                                 hr()),
+                                 htmlOutput(modal_photo)
+                                 ),
                         tabPanel(title = "Table",
                                  br(),
-                                 hr())
+                                 renderDataTable({
+                                   datatable(modalDataWide,
+                                             options = list(pageLength = 10))
+                                 })
+                                 )
                         )
-                      )
                     )
+        )
         )
       }
   })
@@ -275,8 +420,17 @@ server <- function(input, output, session) {
   # Reactive modal plot data
   modalData <- reactive({
     event.data <- event_data("plotly_click", source = "map_ly")
-    if(event.data$curveNumber[1] == 2){}
-    
+    if(event.data$curveNumber[1] == 2){
+      site_idx <- pop_coords %>% 
+        dplyr::filter(lon == event.data$x[1],
+                      lat == event.data$y[1])
+      if(site_idx$site[1] == "Airport"){
+        modalData <- station_airport
+      } else if(site_idx$site[1] == "Ny Alesund"){
+        modalData <- station_ny
+      } else{
+      }
+    }
   })
   
   
@@ -347,14 +501,6 @@ server <- function(input, output, session) {
       map_plot <- map_plot + geom_polygon(data = glacier_fortified, fill = "lightblue",
                                           aes(group = group, text = "Glacier"))
     }
-
-    # Add glacier frontline layer
-    # if(input$glacierfront){
-    #   req(input$year)
-    #   if(input$year >= 2008)
-    #   map_plot <- map_plot + geom_polygon(data = filter(glacier_frontlines, year == input$year), fill = NA, colour = "purple",
-    #                                       aes(group = group, text = "Glacier front"))
-    # }
     
     # Add station layer
     if(input$station){
@@ -449,20 +595,20 @@ server <- function(input, output, session) {
 
   # Test bits ---------------------------------------------------------------
 
-  output$maply_click <- renderText({
-    event.data <- event_data(event = "plotly_click", source = "map_ly")
-    if (is.null(event.data)) {
-      print("Click to see the link of the point.")
-    } else { 
-      print(event.data)
-    }
-  })
+  # output$maply_click <- renderText({
+  #   event.data <- event_data(event = "plotly_click", source = "map_ly")
+  #   if (is.null(event.data)) {
+  #     print("Click to see the link of the point.")
+  #   } else { 
+  #     print(event.data)
+  #   }
+  # })
   
-  observe({
-    event_click <- event_data("plotly_click", source = "map_ly")
-    # hidden_labels <- relayout$hiddenlabels
-    print(event_click)
-  })
+  # observe({
+  #   event_click <- event_data("plotly_click", source = "map_ly")
+  #   # hidden_labels <- relayout$hiddenlabels
+  #   print(event_click)
+  # })
   
   
 }
