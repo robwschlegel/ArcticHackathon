@@ -44,7 +44,8 @@ ERA5_anom_smol <- ERA5_anom %>%
          smlt = round(smlt, 2),
          lon = lon-0.1) %>% 
   dplyr::select(lon, lat, year, t2m, sst, siconc, msl, smlt) %>% 
-  `colnames<-`(c("lon", "lat", "year", "T2m", "SST", "sea ice cover", "MSLP", "snow melt"))
+  `colnames<-`(c("lon", "lat", "year", "T2m", "SST", "sea ice cover", "MSLP", "snow melt")) #%>% 
+  # na.omit() 
 saveRDS(ERA5_anom_smol, "data/ERA5_anom_smol.Rds")
 
 # ERA5 annual means
@@ -53,18 +54,39 @@ ERA5_mean_smol <- ERA5_mean %>%
   dplyr::rename(lon = longitude, lat = latitude) %>% 
   mutate(year = year(time),
          t2m = round(t2m-273.15, 2),
-         sst = round(sst, 2),
+         sst = round(sst-273.15, 2),
          siconc = round(siconc, 2),
          msl = round(msl, 2),
          smlt = round(smlt, 2),
          lon = lon-0.1) %>% 
   dplyr::select(lon, lat, year, t2m, sst, siconc, msl, smlt) %>% 
-  `colnames<-`(c("lon", "lat", "year", "T2m", "SST", "sea ice cover", "MSLP", "snow melt"))
+  `colnames<-`(c("lon", "lat", "year", "T2m", "SST", "sea ice cover", "MSLP", "snow melt")) #%>% 
+  # na.omit() 
 saveRDS(ERA5_mean_smol, "data/ERA5_mean_smol.Rds")
+
+# ERA5 annual trends
+ERA5_trend <- read_csv("../data_for_shiny/ERA5_trends.csv")
+ERA5_trend_smol <- ERA5_trend %>% 
+  dplyr::rename(lon = longitude, lat = latitude, name = variable, value = slope) %>% 
+  filter(name %in% c("t2m", "sst", "siconc", "msl", "smlt")) %>% 
+  mutate(value = round(value*10, 2),
+         rvalue = round(rvalue, 2),
+         pvalue = round(pvalue, 2),
+         # pvalue = case_when(pvalue == 0 ~ "p <0.01",
+                            # TRUE ~ paste0("p = ",pvalue)),
+         lon = lon-0.1) %>% 
+  dplyr::select(lon, lat, name, value, pvalue, rvalue) %>%
+  mutate(name = case_when(name == "t2m" ~ "T2m",
+                          name == "sst" ~ "SST",
+                          name == "siconc" ~ "sea ice cover",
+                          name == "msl" ~ "MSLP",
+                          name == "smlt" ~ "snow melt"))
+saveRDS(ERA5_trend_smol, "data/ERA5_trend_smol.Rds")
 
 # Test plots
 ERA5_anom_smol %>% 
-  filter(year == 1991) %>% 
+  # na.omit() %>% 
+  filter(year == 1991) %>%
   ggplot(aes(x = lon, y = lat)) +
   geom_tile(aes(fill = T2m))
 

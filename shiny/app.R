@@ -11,9 +11,9 @@ library(shinyWidgets)
 library(plotly)
 library(dplyr)
 library(tidyr)
-library(readr)
 library(lubridate)
 library(ggplot2)
+# library(readr)
 # library(raster)
 # library(rgdal)
 # library(broom)
@@ -42,24 +42,30 @@ MHW_colours <- c(
 MHW_cat_clim_sub <- data.frame(category = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))
 
 # Oliver 2018 MHW trend data
-oliver <- readRDS("data/Oliver_2018_sub.Rds") 
+# oliver <- readRDS("data/Oliver_2018_sub.Rds") 
 
 # ERA5 annual anomalies
 ERA5_anom <- readRDS("data/ERA5_anom_smol.Rds") %>% 
   pivot_longer(T2m:`snow melt`) %>% 
-  mutate(cat = "Anomaly")
+  mutate(cat = "Anomaly", pvalue = NA, rvalue = NA) %>% 
+  filter(year != 2021)
 
 # ERA5 annual means
 ERA5_mean <- readRDS("data/ERA5_mean_smol.Rds") %>% 
-  pivot_longer(T2m:`snow melt`) %>% 
-  mutate(cat = "Mean")
+  pivot_longer(T2m:`snow melt`) %>%
+  mutate(cat = "Mean", pvalue = NA, rvalue = NA) %>% 
+  filter(year != 2021)
+
+# ERA5 decadal trends
+ERA5_trend <- readRDS("data/ERA5_trend_smol.Rds") %>% 
+  mutate(cat = "Trend", year = NA)
 
 # Combine for ease of filtering
-ERA5_ALL <- rbind(ERA5_anom, ERA5_mean)
+ERA5_ALL <- rbind(ERA5_anom, ERA5_mean, ERA5_trend)
 
 # MHW annual summary data
-MHW_summary <- readRDS("data/MHW_summary_sub.Rds") %>% 
-  mutate(year = lubridate::year(t))
+# MHW_summary <- readRDS("data/MHW_summary_sub.Rds") %>% 
+#   mutate(year = lubridate::year(t))
 
 # Glacier shapefile
 # glacier_shp <- shapefile("../analyses/ESA_land_classes/Svalbard_glaciers_wgs84_postproc.shp")
@@ -90,45 +96,20 @@ ui <- dashboardPage(skin = "blue",
                     # The primary options
                     dashboardSidebar(
                       sidebarMenu(id = "comparisonMenu",
-                                  # menuItem("Annual", tabName = "annual", icon = icon("chart-line")),
-                                  # menuItem("Daily", tabName = "daily", icon = icon("chart-line")),
                                   menuItem("Map", tabName = "map", icon = icon("map"), selected = TRUE),
                                   # menuItem("Tables", tabname = "tables", icon = icon("table")),
                                   menuItem("About", tabName = "about", icon = icon("question")),
                                   # The reactive controls based on the primary option chosen
-                                  uiOutput(outputId = "sidebar_controls"))
+                                  uiOutput(outputId = "sidebar_controls_cat"),
+                                  uiOutput(outputId = "sidebar_controls_other"))
                     ),
                     
                     # The dashboard
                     dashboardBody(
                       tabItems(
                         
-                        
-                        # Total figures -----------------------------------------------------------
-                        
-                        # tabItem(tabName = "annual",
-                        #         fluidRow(box(plotlyOutput(ns("totalCount")), width = 12, 
-                        #                      title = "Average daily MHW occurrence per year (% of ocean)",
-                        #                      status = "primary", solidHeader = TRUE, collapsible = TRUE),
-                        #                  box(plotlyOutput(ns("totalFirst")), width = 12, 
-                        #                      title = "Total coverage per year (% of ocean)",
-                        #                      status = "warning", solidHeader = TRUE, collapsible = TRUE),
-                        #                  box(plotlyOutput(ns("totalCum")), width = 12, 
-                        #                      title = "Total MHW days per pixel per year",
-                        #                      status = "success", solidHeader = TRUE, collapsible = TRUE))),
-                        
-                        
-                        # Daily figures -----------------------------------------------------------
-                        
-                        # tabItem(tabName = "daily",
-                        #         fluidRow(box(plotlyOutput(ns("dailyCount")), width = 12, title = "Daily count (% of ocean)",
-                        #                      status = "primary", solidHeader = TRUE, collapsible = TRUE),
-                        #                  box(plotlyOutput(ns("dailyFirst")), width = 12, title = "Total coverage (% of ocean)",
-                        #                      status = "warning", solidHeader = TRUE, collapsible = TRUE),
-                        #                  box(plotlyOutput(ns("dailyCum")), width = 12, title = "MHW days per pixel",
-                        #                      status = "success", solidHeader = TRUE, collapsible = TRUE))),
-                        
-                        # Map figures -------------------------------------------------------------
+
+                        # Map tab -----------------------------------------------------------------
                         
                         tabItem(tabName = "map",
                                 # fluidRow(box(shinycssloaders::withSpinner(plotOutput(ns("compOISST")), type = 6, color = "#b0b7be"),
@@ -142,7 +123,8 @@ ui <- dashboardPage(skin = "blue",
                                 #     leafletOutput("map", width = "100%", height = "100%"))),
                                 fluidRow(box(plotlyOutput("map", width = '100%', height = '600px'), width = 12, height = '600px', type = 6, color = "#b0b7be"),
                                          width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE),
-                                fluidRow()),
+                                fluidRow(box(plotlyOutput("ts", width = '100%', height = '200px'), width = 12, height = '200px', type = 6, color = "#b0b7be"),
+                                         width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE)),
                         
                         
                         # Tables ------------------------------------------------------------------
@@ -159,9 +141,15 @@ ui <- dashboardPage(skin = "blue",
                                   column(12,
                                          h2(tags$b("About")),
                                          p("This shiny app is designed to allow one to quickly and easily see what the trends in environmental change
-                                                 are around Svalbard."),
-                                         h2(tags$b("Map")),
-                                         p("The 'Map' tab shows Svalbard.")
+                                           are around Svalbard. Clicking on a pixel when bring up an annual time series for further investigation.
+                                           In the control panel on the left one may select what category of data one wants, the variable, and the year.
+                                           If one is visualising trend data there will be no year to select."),
+                                         # h2(tags$b("Map")),
+                                         # p("The 'Map' tab shows Svalbard with.")
+                                         h2(tags$b("Acknowledgements")),
+                                         p("This app was built in part to serve as a proof of concept for how to easily and interactively visualise
+                                           environmental change in the Arctic (Svalbard) as part of the #HackTheArctic event. Contributions to this 
+                                           app represent work that is of interest towards the deliverables for...")
                                   )
                                 )
                         )
@@ -195,8 +183,8 @@ server <- function(input, output, session) {
   
   # Select broad category
   picker_category <- pickerInput(inputId = "category", label = "Category:",
-                                 choices = c("Trend", "Mean", "Anomaly"), 
-                                 multiple = FALSE, selected = "Anomaly")
+                                 choices = unique(ERA5_ALL$cat), 
+                                 multiple = FALSE, selected = "Trend")
   
   # Specific layer for selection
   # picker_layer <- pickerInput(inputId = "layer", label = "Data layers:",
@@ -209,27 +197,24 @@ server <- function(input, output, session) {
   #                            options = list(size = 6),
   #                            selected = "Anomaly: SST")
   picker_layer <- pickerInput(inputId = "layer", label = "Data layers:",
-                              choices = c("SST", "sea ice cover", "T2M", "MSLP", "snow melt"),
+                              choices = unique(ERA5_ALL$name),
                               multiple = FALSE,
                               options = list(size = 6),
-                              selected = "SST")
+                              selected = unique(ERA5_ALL$name)[1])
+  
+  # Select years from a dropdown
+  picker_year <- pickerInput(inputId = "year", label = "Year:",
+                             choices = seq(min(ERA5_ALL$year, na.rm = T), max(ERA5_ALL$year, na.rm = T)),
+                             # choices = yearChoices(),
+                             multiple = FALSE, selected = max(ERA5_ALL$year,na.rm = T), options = list(size = 5))
   
   # Glacier layer
   switch_glacier <- materialSwitch(inputId = "glacier", label = "Glacier layer:", status = "info")
   
-  # Select years from a dropdown
-  picker_year <- pickerInput(inputId = "year", label = "Year:",
-                             choices = seq(1982, 2020), multiple = FALSE,
-                             selected = 2019, options = list(size = 5))
-  
-  # The chosen controls per tab
-  output$sidebar_controls <- renderUI({
+  # The high level UI controls
+  output$sidebar_controls_cat <- renderUI({
     if(input$comparisonMenu == "map"){
-      sidebarMenu(picker_category, picker_layer, switch_glacier, picker_year)
-    } else if(input$comparisonMenu == "daily"){
-      # sidebarMenu(picker_year)
-    } else if(input$comparisonMenu == "annual"){
-      # sidebarMenu()
+      sidebarMenu(picker_category, picker_layer)
     } else if(input$comparisonMenu == "about"){
       # Intentionally empty
     } else{
@@ -237,89 +222,109 @@ server <- function(input, output, session) {
     }
   })
   
+  # The low level UI controls
+  output$sidebar_controls_other <- renderUI({
+    req(input$category)
+    if(input$category == "Trend"){
+      sidebarMenu(switch_glacier)
+    } else {
+      sidebarMenu(picker_year, switch_glacier)
+    }
+  })
+  
   
   # Reactive values ---------------------------------------------------------
   
-  # Values that appear in the list of selectable data layers
-  
-  # Pre base data
-  baseDataPre <- reactive({
-    red(input$category)
-  })
+  # Years for selection
+  # yearChoices <- reactiveValues({
+  #   req(input$category)
+  #   if(input$category == "Trend") {
+  #     yearChoices <- NA
+  #   } else {
+  #     yearChoices <- seq(min(ERA5_ALL$year, na.rm = T), max(ERA5_ALL$year, na.rm = T))
+  #   }
+  #   return(yearChoices)
+  # })
   
   # Reactive expression for the data subsetted to what the user selected
   baseData <- reactive({
-    req(input$layer); req(input$layer); req(input$year)
-    # if(input$layer == "Anomaly: SST"){
+    req(input$layer); req(input$category)
       baseData <- ERA5_ALL %>% 
-        # dplyr::filter(year == 1990,  # For testing...
-        #               name == "SST",
-        #               cat == "Mean")
-        dplyr::filter(year == input$year,
-                      name == input$layer,
-                      cat == input$category)
-    # } else {
-      # baseData <- MHW_summary %>% 
-        # dplyr::filter(year == 1990) %>% # For testing... 
-        # dplyr::filter(year == input$year[1]) #%>% 
-        # dplyr::select(lon, lat, category) %>% 
-        # mutate(text = paste0("Lon: ",lon,"\n",
-        #                      "Lat: ",lat,"\n",
-        #                      "Category: ",category))
-    # }
+        # dplyr::filter(year == 1990, name == "SST", cat == "Anomaly") # For testing...
+        dplyr::filter(name == input$layer,
+                      cat == input$category) #%>% 
+        # na.omit()
+      if(input$category %in% c("Mean", "Anomaly")){
+        req(input$year)
+        baseData <- baseData %>% 
+          filter(year == input$year)
+      }
     return(baseData)
   })
   
   
-  # Map figures -------------------------------------------------------------
+  # Map figure --------------------------------------------------------------
   
   # The map
   output$map <- renderPlotly({
-    req(input$year); req(input$layer); req(input$category)
+    req(input$layer); req(input$category); req(!is.null(input$glacier))
     
     # Prep data
     baseData <- baseData()
-    # baseData <- MHW_summary %>%
-    #     filter(year == 1990)
-    
-    # Don't want tooltip for map of Svalbard
-    trace_skip <- 1
     
     # Create plot
     map_prep <- ggplot(data = baseData, aes(x = lon, y = lat)) +
-      geom_polygon(data = map_base, aes(group = group, text = NULL), colour = "black", fill = "grey30") +
+      geom_polygon(data = map_base, aes(group = group, text = NULL), colour = "black", fill = "grey90", alpha = 0.3) +
+      geom_tile(aes(fill = value, text = value), alpha = 0.8) +
       coord_equal(xlim = sval_bbox[1:2], ylim = sval_bbox[3:4], expand = F, ratio = 2) +
       labs(x = NULL, y = NULL)
     if(input$category %in% c("Trend", "Anomaly")) {
       map_plot <- map_prep +
-        geom_tile(aes(fill = value, text = "")) +
         # scale_fill_gradient2(low = "blue", high = "red") # For testing...
         scale_fill_gradient2(input$layer, low = "blue", high = "red")
     } else {
       map_plot <- map_prep +
-        geom_tile(aes(fill = value, text = "")) +
-        # scale_fill_gradient2(low = "blue", high = "red") # For testing...
         scale_fill_viridis_c(input$layer)
     }
-    # } else {
-    #   map_plot <- ggplot(data = baseData, aes(x = lon, y = lat)) +
-    #     geom_polygon(data = map_base, aes(group = group, text = NULL), colour = "black", fill = "grey30") +
-    #     # geom_polygon(data = glacier_fortified, aes(group = group, text = NULL), fill = "lightblue") +
-    #     geom_tile(aes(fill = category, text = "")) +
-    #     scale_fill_manual(values = MHW_colours) +
-    #     coord_equal(xlim = sval_bbox[1:2], ylim = sval_bbox[3:4], expand = F, ratio = 2) +
-    #     labs(x = NULL, y = NULL)
+    # if(input$layer %in% c("T2m", "MSLP")){
+    #   map_plot <- map_plot + geom_tile(data = baseData, aes(fill = value, text = value), alpha = 0.8)
     # }
     
     # Add glacier layer
     if(input$glacier){
-      map_plot <- map_plot + geom_polygon(data = glacier_fortified, aes(group = group, text = NULL), fill = "lightblue")
-      trace_skip <- c(1, 5)
+      map_plot <- map_plot + geom_polygon(data = glacier_fortified, aes(group = group, text = "Glacier"), fill = "lightblue")
     }
 
     # Plotly output
     ggplotly(map_plot, tooltip = "text", dynamicTicks = F) %>% 
-      style(hoverinfo = "skip", traces = trace_skip)
+      style(hoverinfo = "skip", traces = 0)
+  })
+  
+
+  # Time series figure ------------------------------------------------------
+  
+  # The TS plot
+  output$ts <- renderPlotly({
+    req(input$year); req(input$layer); req(input$category)
+    
+    # Prep data
+    pixelData <- ERA5_ALL %>%
+      # filter(name == "SST", cat == "Mean") %>%  # For testing...
+      filter(name == input$layer,
+             cat == input$category) %>%
+      group_by(year) %>% 
+      summarise(value = mean(value, na.rm = T), .groups = "drop")
+    
+    # Create plot
+    ts_plot <- ggplot(data = pixelData, aes(x = year, y = value)) +
+      geom_line() +
+      geom_point(aes(fill = value, text = value), shape = 21) +
+      # labs(x = NULL, y = "Name") # For testing...
+      labs(x = NULL, y = input$layer)
+    
+    # Plotly output
+    ggplotly(ts_plot, tooltip = "text", dynamicTicks = F)# %>% 
+      # style(hoverinfo = "skip", traces = 0)
   })
   
 }
