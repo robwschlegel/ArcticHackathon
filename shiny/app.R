@@ -85,6 +85,10 @@ map_base <- ggplot2::fortify(maps::map(fill = TRUE, col = "grey80", plot = FALSE
   filter(lon >= sval_bbox[1], lon <= sval_bbox[2],
        lat >= sval_bbox[3], lat <= sval_bbox[4])
 
+# Popup coordinates
+pop_coords <- data.frame(site = c("Airport"),
+                         lon = c(15.4633742),
+                         lat = c(78.2460841))
 
 # UI ----------------------------------------------------------------------
 
@@ -112,18 +116,9 @@ ui <- dashboardPage(skin = "blue",
                         # Map tab -----------------------------------------------------------------
                         
                         tabItem(tabName = "map",
-                                # fluidRow(box(shinycssloaders::withSpinner(plotOutput(ns("compOISST")), type = 6, color = "#b0b7be"),
-                                #              width = 4, title = "OISST", status = "primary", solidHeader = TRUE, collapsible = TRUE),
-                                #          box(shinycssloaders::withSpinner(plotOutput(ns("compCCI")), type = 6, color = "#b0b7be"),
-                                #              width = 4, title = "CCI", status = "success", solidHeader = TRUE, collapsible = TRUE),
-                                #          box(shinycssloaders::withSpinner(plotOutput(ns("compCMC")), type = 6, color = "#b0b7be"),
-                                #              width = 4, title = "CMC", status = "warning", solidHeader = TRUE, collapsible = TRUE)),
-                                # bootstrapPage(
-                                #     tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
-                                #     leafletOutput("map", width = "100%", height = "100%"))),
                                 fluidRow(box(plotlyOutput("map", width = '100%', height = '580px'), width = 12, height = '600px', type = 6, color = "#b0b7be"),
                                          width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE),
-                                # fluidRow(tableOutput("maply_click")),
+                                fluidRow(textOutput("maply_click")),
                                 fluidRow(box(plotlyOutput("ts", width = '100%', height = '180px'), width = 12, height = '200px', type = 6, color = "#b0b7be"),
                                          width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE)),
                         
@@ -206,10 +201,13 @@ server <- function(input, output, session) {
   # Glacier layer
   switch_glacier <- materialSwitch(inputId = "glacier", label = "Glacier layer:", status = "info")
   
+  # Station layer
+  switch_station <- materialSwitch(inputId = "station", label = "Station layer:", status = "primary")
+  
   # The high level UI controls
   output$sidebar_controls_cat <- renderUI({
     if(input$comparisonMenu == "map"){
-      sidebarMenu(switch_glacier, picker_category, picker_layer)
+      sidebarMenu(switch_station, switch_glacier, picker_category, picker_layer)
     } else if(input$comparisonMenu == "about"){
       # Intentionally empty
     } else{
@@ -302,7 +300,6 @@ server <- function(input, output, session) {
     # Add colour palette accordingly
     if(input$category %in% c("Trend", "Anomaly")) {
       map_plot <- map_prep +
-        # scale_fill_gradient2(low = "blue", high = "red") # For testing...
         scale_fill_gradient2(paste0(input$layer,"\n",legend_label), low = "blue", high = "red", 
                              limits = c(min(legendData), max(legendData)), breaks = legendData)
     } else {
@@ -313,9 +310,16 @@ server <- function(input, output, session) {
     
     # Add glacier layer
     if(input$glacier){
-      map_plot <- map_plot + geom_polygon(data = glacier_fortified, aes(group = group, text = "Glacier"), fill = "lightblue")
+      map_plot <- map_plot + geom_polygon(data = glacier_fortified, fill = "lightblue",
+                                          aes(group = group, text = "Glacier"))
     }
 
+    # Add station layer
+    if(input$station){
+      map_plot <- map_plot + geom_point(data = pop_coords, aes(text = site),
+                                        shape = 25, size = 10, colour = "black", fill = "hotpink")
+    }
+    
     # Plotly output
     ggplotly(map_plot, tooltip = "text", dynamicTicks = F, source = "map_ly") %>% 
       style(hoverinfo = "skip", traces = 0)
@@ -357,6 +361,7 @@ server <- function(input, output, session) {
       # input <- data.frame(layer = "T2m", category = "Mean") # tester...
       # event.data <- data.frame(x = 30, y = 75) # Tester...
       # Time series data
+      
       pixelData <- ERA5_ALL %>%
         # data.frame() %>% 
         dplyr::filter(name == input$layer,
@@ -391,6 +396,25 @@ server <- function(input, output, session) {
     ggplotly(ts_plot, tooltip = "text", dynamicTicks = F) #%>% 
       # style(hoverinfo = "skip", traces = 0)
   })
+  
+
+  # Test bits ---------------------------------------------------------------
+
+  output$maply_click <- renderText({
+    event.data <- event_data(event = "plotly_click", source = "map_ly")
+    if (is.null(event.data)) {
+      print("Click to see the link of the point.")
+    } else { 
+      print(event.data)
+    }
+  })
+  
+  observe({
+    event_click <- event_data("plotly_click", source = "map_ly")
+    # hidden_labels <- relayout$hiddenlabels
+    print(event_click)
+  })
+  
   
 }
 
