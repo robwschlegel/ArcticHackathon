@@ -5,16 +5,18 @@
 # Libraries ---------------------------------------------------------------
 
 library(shiny)
-library(leaflet)
+# library(leaflet)
 library(dplyr)
 library(lubridate)
-library(raster)
-library(rgdal)
+# library(raster)
+# library(rgdal)
 library(shinydashboard)
 library(shinycssloaders)
 library(shinyWidgets)
-library(broom)
+# library(broom)
 library(ggplot2)
+library(plotly)
+library(rasterly)
 # library(RColorBrewer)
 
 
@@ -22,6 +24,9 @@ library(ggplot2)
 
 # For testing
 # setwd("shiny/")
+
+# Svalbard bbox
+sval_bbox <- c(9, 30, 76, 81)
 
 # MHW colour palette
 MHW_colours <- c(
@@ -42,9 +47,9 @@ MHW_summary <- readRDS("data/MHW_summary_sub.Rds") %>%
     mutate(year = lubridate::year(t))
 
 # Glacier shapefile
-glacier_shp <- shapefile("../analyses/ESA_land_classes/Svalbard_glaciers_wgs84_postproc.shp")
+# glacier_shp <- shapefile("../analyses/ESA_land_classes/Svalbard_glaciers_wgs84_postproc.shp")
 # plot(glacier_shp)
-# glacier_fortified <- broom::tidy(glacier_shp, region = "DN")
+
 # ggplot() +
 #     geom_polygon(data = glacier_fortified, aes( x = long, y = lat, group = group), fill = "#69b3a2", color = "white") +
 #     theme_void()
@@ -55,10 +60,17 @@ glacier_fortified <- readRDS("data/glacier_fortified.Rds")
 inputProj <- "+init=epsg:4326 +proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
 leafletProj <- "+proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +towgs84=0,0,0,0,0,0,0 +units=m +nadgrids=@null +wktext +no_defs"
 
+# Base map
+map_base <- ggplot2::fortify(maps::map(fill = TRUE, col = "grey80", plot = FALSE)) %>%
+  dplyr::rename(lon = long) %>% 
+    filter(subregion == "Svalbard")
+    # filter(lon >= sval_bbox[1], lon <= sval_bbox[2],
+    #        lat >= sval_bbox[3], lat <= sval_bbox[4])
+
 
 # UI ----------------------------------------------------------------------
 
-ui <- dashboardPage(skin = "black",
+ui <- dashboardPage(skin = "blue",
                     
                     # The app title
                     dashboardHeader(disable = TRUE),
@@ -116,8 +128,9 @@ ui <- dashboardPage(skin = "black",
                                     # bootstrapPage(
                                     #     tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
                                     #     leafletOutput("map", width = "100%", height = "100%"))),
-                                    fluidPage(box(shinycssloaders::withSpinner(plotlyOutput("map")), type = 6, color = "#b0b7be"),
-                                              width = 12, title = "Svalbard", status = "danger", solidHeader = TRUE, collapsible = FALSE)),
+                                    fluidRow(box(shinycssloaders::withSpinner(plotlyOutput("map")), width = 12, type = 6, color = "#b0b7be"),
+                                              width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE),
+                                    fluidRow()),
                             
                             
                             # Tables ------------------------------------------------------------------
@@ -193,121 +206,54 @@ server <- function(input, output, session) {
     
     # Reactive expression for the data subsetted to what the user selected
     baseData <- reactive({
-        req(input$year)
-        MHW_summary %>% 
-            filter(year == input$year[1]) %>% 
-            dplyr::select(lon, lat, category)
+      req(input$year)
+      MHW_summary %>% 
+        filter(year == input$year[1]) %>% 
+        dplyr::select(lon, lat, category) %>% 
+        mutate(text = paste0("Lon: ",lon,"\n",
+                             "Lat: ",lat,"\n",
+                             "Category: ",category))
     })
     
-    # Reactive colour palette
-    pal_react <- reactive({
+    
+    # Map figures -------------------------------------------------------------
+    
+    # The map
+    output$map <- renderPlotly({
+        req(input$year)#; req(input$clim_period)
+        # baseData <- MHW_summary %>%
+        #     filter(year == 1990)
         baseData <- baseData()
-        # if(input$layer == "Anomaly: OISST"){
-        #     domain_low <- min(baseDataPre$anom, na.rm = T)
-        #     domain_high <- max(baseDataPre$anom, na.rm = T)
-        # }
-        # if(input$layer %in% trend_layers){
-        #     domain_low <- min(baseDataPre$val, na.rm = T)
-        #     domain_high <- max(baseDataPre$val, na.rm = T)
-        # }
-        # if(input$layer %in% cat_layers){
-        #     domain_low <- 1; domain_high <- 1
-        # }
-        # if(abs(domain_high) > abs(domain_low)){
-        #     domain_low <- -domain_high
-        # } else{
-        #     domain_high <- -domain_low
-        # }
-        # if(input$layer %in% cat_layers){
-            colorNumeric(palette = MHW_colours, domain = c(1,2,3,4), na.color = NA)
-        # } else {
-        #     colorNumeric(palette = c( "blue", "white", "red"), na.color = NA, 
-        #                  domain = c(domain_low, domain_high))
-        # }
-    })
-
-    
-    # Project data ------------------------------------------------------------
-    
-    ### Non-shiny-projected raster data
-    rasterNonProj <- reactive({
-        baseData <- baseData()
-        # if(input$layer %in% c("Category: OISST", "Summary: OISST")){
-        #     MHW_raster <- baseData %>%
-        #         dplyr::select(lon, lat, category) 
-        # } else if(input$layer == "Anomaly: OISST"){
-        #     MHW_raster <- baseData %>%
-        #         dplyr::select(lon, lat, anom) 
-        # } else if(input$layer %in% trend_layers){
-        #     MHW_raster <- baseData %>%
-        #         dplyr::select(lon, lat, val)
-        # } else {
-            MHW_raster <- baseData
-        # }
-        colnames(MHW_raster) <- c("X", "Y", "Z")
-        MHW_raster$Z <- as.numeric(MHW_raster$Z)
-        suppressWarnings(
-            rasterNonProj <- raster::rasterFromXYZ(MHW_raster, res = c(0.25, 0.25),
-                                                   digits = 3, crs = inputProj)
-        )
-        return(rasterNonProj)
+        map_plot <- ggplot(data = baseData, aes(x = lon, y = lat)) +
+            # borders(colour = "black", fill = "grey30") +
+            geom_polygon(data = map_base, aes(group = group, text = NULL), colour = "black", fill = "grey30") +
+            # geom_polygon(data = glacier_fortified, aes(group = group, text = NULL), fill = "lightblue") +
+            geom_tile(aes(fill = category, text = "")) +
+            scale_fill_manual(values = MHW_colours) +
+            coord_equal(xlim = sval_bbox[1:2], ylim = sval_bbox[3:4], expand = F) +
+            labs(x = NULL, y = NULL)
+        # map_plot <- plotRasterly(data = baseData, aes(x = lon, y = lat, colour = category),
+        #                          alpha = 1, point_size = 5, shape = 15, show_raster = T, color = MHW_colours,
+        #                          as_image = F, sizing = "contain", plot_width = 300, plot_height = 150) #+
+            # scale_fill_manual(values = MHW_colours) +
+            # scale_colour_manual(values = MHW_colours) +
+            # coord_equal(xlim = sval_bbox[1:2], ylim = sval_bbox[3:4], expand = F)
+        # map_plot <- plot_ly(data = baseData) %>% add_rasterly_image(x = ~lon, y = ~lat)
+        # map_plot
+        ggplotly(map_plot, tooltip = "text", dynamicTicks = F) %>% 
+          style(hoverinfo = "skip", traces = 1)
+        # plot_ly(baseData) %>% 
+        #     add_rasterly_image(x = ~lon, y = ~lat, color = ~category,
+        #                        # even `color_map` is deprecated,
+        #                        # it is still a good way to specify the color mapping
+        #                        color = MHW_colours, 
+        #                        plot_width = 400, plot_height = 400)
+        # baseDataxyz <- baseData %>% 
+        #     dplyr::rename(x = lon, y = lat, z = category)
+        # plot_geo() %>% 
+        #     add_rasterly_image(raster(baseDataxyz))
     })
     
-    ### Shiny-projected raster data
-    rasterProj <- reactive({
-        rasterNonProj <- rasterNonProj()
-        # NB: Smoothing the pixels is easy, but causes massive artifacts
-        # if(input$pixels == "Smooth"){
-        # rasterProj <- projectRasterForLeaflet(rasterNonProj, method = "bilinear")
-        # } else {
-        suppressWarnings(
-            rasterProj <- projectRasterForLeaflet(rasterNonProj, method = "ngb")
-        )
-        # }
-        return(rasterProj)
-    })
-    
-    ### The reactive map
-    output$map <- renderLeaflet({
-        # Use leaflet() here, and only include aspects of the map that
-        # won't need to change dynamically (at least, not unless the
-        # entire map is being torn down and recreated).
-        leaflet(data = MHW_cat_clim_sub, options = leafletOptions(zoomControl = FALSE)) %>% 
-            addTiles() %>%
-            # leaflet::addPolygons(glacier_shp) %>% 
-            fitBounds(9, 76, 30, 81) %>% 
-            addScaleBar(position = "bottomright")
-            # fitBounds(~min(long), ~min(lat), ~max(long), ~max(lat))
-    })
-    
-    # Incremental changes to the map (in this case, replacing the
-    # circles when a new color is chosen) should be performed in
-    # an observer. Each independent set of things that can change
-    # should be managed in its own observer.
-    observe({
-        # pal <- colorpal()
-
-        leafletProxy("map") %>% #, data = rasterProj()) %>%
-            # clearShapes() %>%
-            addRasterImage(rasterProj(), colors = pal_react(), layerId = "map_raster",
-                           project = FALSE, opacity = 0.8)
-    })
-    
-    # Use a separate observer to recreate the legend as needed.
-    # observe({
-    #     proxy <- leafletProxy("map", data = MHW_cat_clim_sub)
-    # 
-    #     # Remove any existing legend, and only if the legend is
-    #     # enabled, create a new one.
-    #     proxy %>% clearControls()
-    #     if (input$legend) {
-    #         pal <- pal_react()
-    #         proxy %>% addLegend(position = "bottomright",
-    #                             bins = 4,
-    #                             pal = pal, values = ~category
-    #         )
-    #     }
-    # })
 }
 
 
