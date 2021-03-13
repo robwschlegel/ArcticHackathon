@@ -46,11 +46,16 @@ oliver <- readRDS("data/Oliver_2018_sub.Rds")
 
 # ERA5 annual anomalies
 ERA5_anom <- readRDS("data/ERA5_anom_smol.Rds") %>% 
-  pivot_longer(t2m:smlt)
+  pivot_longer(T2m:`snow melt`) %>% 
+  mutate(cat = "Anomaly")
 
 # ERA5 annual means
 ERA5_mean <- readRDS("data/ERA5_mean_smol.Rds") %>% 
-  pivot_longer(t2m:smlt)
+  pivot_longer(T2m:`snow melt`) %>% 
+  mutate(cat = "Mean")
+
+# Combine for ease of filtering
+ERA5_ALL <- rbind(ERA5_anom, ERA5_mean)
 
 # MHW annual summary data
 MHW_summary <- readRDS("data/MHW_summary_sub.Rds") %>% 
@@ -190,19 +195,24 @@ server <- function(input, output, session) {
   
   # Select broad category
   picker_category <- pickerInput(inputId = "category", label = "Category:",
-                                 choices = c("Decadal Trends", "Annual Means"), 
-                                 multiple = FALSE, selected = "Decadal Trends")
+                                 choices = c("Trend", "Mean", "Anomaly"), 
+                                 multiple = FALSE, selected = "Anomaly")
   
   # Specific layer for selection
+  # picker_layer <- pickerInput(inputId = "layer", label = "Data layers:",
+  #                            choices = list(
+  #                              Trend = c("Trend: SST", "Trend: sea ice cover", "Trend: T2M", "Trend: MSLP", "Trend: snow melt"),
+  #                              Mean = c("Mean: SST", "Mean: sea ice cover", "Mean: T2M", "Mean: MSLP", "Mean: snow melt"),
+  #                              Anomaly = c("Anomaly: SST", "Anomaly: sea ice cover", "Anomaly: T2M", "Anomaly: MSLP", "Anomaly: snow melt")
+  #                            ),
+  #                            multiple = FALSE,
+  #                            options = list(size = 6),
+  #                            selected = "Anomaly: SST")
   picker_layer <- pickerInput(inputId = "layer", label = "Data layers:",
-                             choices = list(
-                               Trend = c("Trend: SST", "Trend: sea ice cover", "Trend: T2M", "Trend: MSLP", "Trend: snow melt"),
-                               Mean = c("Mean: SST", "Mean: sea ice cover", "Mean: T2M", "Mean: MSLP", "Mean: snow melt"),
-                               Anomaly = c("Anomaly: SST", "Anomaly: sea ice cover", "Anomaly: T2M", "Anomaly: MSLP", "Anomaly: snow melt")
-                             ),
-                             multiple = FALSE,
-                             options = list(size = 6),
-                             selected = "Anomaly: SST")
+                              choices = c("SST", "sea ice cover", "T2M", "MSLP", "snow melt"),
+                              multiple = FALSE,
+                              options = list(size = 6),
+                              selected = "SST")
   
   # Glacier layer
   switch_glacier <- materialSwitch(inputId = "glacier", label = "Glacier layer:", status = "info")
@@ -215,7 +225,7 @@ server <- function(input, output, session) {
   # The chosen controls per tab
   output$sidebar_controls <- renderUI({
     if(input$comparisonMenu == "map"){
-      sidebarMenu(picker_layer, switch_glacier, picker_year)
+      sidebarMenu(picker_category, picker_layer, switch_glacier, picker_year)
     } else if(input$comparisonMenu == "daily"){
       # sidebarMenu(picker_year)
     } else if(input$comparisonMenu == "annual"){
@@ -232,23 +242,31 @@ server <- function(input, output, session) {
   
   # Values that appear in the list of selectable data layers
   
+  # Pre base data
+  baseDataPre <- reactive({
+    red(input$category)
+  })
   
   # Reactive expression for the data subsetted to what the user selected
   baseData <- reactive({
-    req(input$layer); req(input$year)
-    if(input$layer == "Anomaly: SST"){
-      baseData <- ERA5_anom %>% 
+    req(input$layer); req(input$layer); req(input$year)
+    # if(input$layer == "Anomaly: SST"){
+      baseData <- ERA5_ALL %>% 
+        # dplyr::filter(year == 1990,  # For testing...
+        #               name == "SST",
+        #               cat == "Mean")
+        dplyr::filter(year == input$year,
+                      name == input$layer,
+                      cat == input$category)
+    # } else {
+      # baseData <- MHW_summary %>% 
         # dplyr::filter(year == 1990) %>% # For testing... 
-        dplyr::filter(year == input$year[1])
-    } else {
-      baseData <- MHW_summary %>% 
-        # dplyr::filter(year == 1990) %>% # For testing... 
-        dplyr::filter(year == input$year[1]) #%>% 
+        # dplyr::filter(year == input$year[1]) #%>% 
         # dplyr::select(lon, lat, category) %>% 
         # mutate(text = paste0("Lon: ",lon,"\n",
         #                      "Lat: ",lat,"\n",
         #                      "Category: ",category))
-    }
+    # }
     return(baseData)
   })
   
@@ -257,13 +275,14 @@ server <- function(input, output, session) {
   
   # The map
   output$map <- renderPlotly({
-    req(input$year); req(input$layer)
+    req(input$year); req(input$layer); req(input$category)
     
     # Prep data
     baseData <- baseData()
     # baseData <- MHW_summary %>%
     #     filter(year == 1990)
     
+    # Don't want tooltip for map of Svalbard
     trace_skip <- 1
     
     # Create plot
@@ -271,19 +290,26 @@ server <- function(input, output, session) {
       geom_polygon(data = map_base, aes(group = group, text = NULL), colour = "black", fill = "grey30") +
       coord_equal(xlim = sval_bbox[1:2], ylim = sval_bbox[3:4], expand = F, ratio = 2) +
       labs(x = NULL, y = NULL)
-    if(input$layer == "Trend: SST") {
+    if(input$category %in% c("Trend", "Anomaly")) {
       map_plot <- map_prep +
-        geom_tile(aes(fill = val, text = "")) +
+        geom_tile(aes(fill = value, text = "")) +
+        # scale_fill_gradient2(low = "blue", high = "red") # For testing...
         scale_fill_gradient2(input$layer, low = "blue", high = "red")
     } else {
-      map_plot <- ggplot(data = baseData, aes(x = lon, y = lat)) +
-        geom_polygon(data = map_base, aes(group = group, text = NULL), colour = "black", fill = "grey30") +
-        # geom_polygon(data = glacier_fortified, aes(group = group, text = NULL), fill = "lightblue") +
-        geom_tile(aes(fill = category, text = "")) +
-        scale_fill_manual(values = MHW_colours) +
-        coord_equal(xlim = sval_bbox[1:2], ylim = sval_bbox[3:4], expand = F, ratio = 2) +
-        labs(x = NULL, y = NULL)
+      map_plot <- map_prep +
+        geom_tile(aes(fill = value, text = "")) +
+        # scale_fill_gradient2(low = "blue", high = "red") # For testing...
+        scale_fill_viridis_c(input$layer)
     }
+    # } else {
+    #   map_plot <- ggplot(data = baseData, aes(x = lon, y = lat)) +
+    #     geom_polygon(data = map_base, aes(group = group, text = NULL), colour = "black", fill = "grey30") +
+    #     # geom_polygon(data = glacier_fortified, aes(group = group, text = NULL), fill = "lightblue") +
+    #     geom_tile(aes(fill = category, text = "")) +
+    #     scale_fill_manual(values = MHW_colours) +
+    #     coord_equal(xlim = sval_bbox[1:2], ylim = sval_bbox[3:4], expand = F, ratio = 2) +
+    #     labs(x = NULL, y = NULL)
+    # }
     
     # Add glacier layer
     if(input$glacier){
