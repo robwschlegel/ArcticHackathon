@@ -1,6 +1,7 @@
 # analyses/data_proc.R
 # This script preps results etc. for use in the shiny app
-
+# Note that this script is intended to be run from the shiny folder as the working directory
+# This is because this script was being run while also developing the shiny script
 
 # Setup -------------------------------------------------------------------
 
@@ -11,23 +12,49 @@ library(lubridate)
 sval_bbox <- c(9, 30, 76, 81)
 
 
-# Crop global files -------------------------------------------------------
+# High-res coastline ------------------------------------------------------
 
-# Trim down the Oliver 2018 paper results
-oliver <- readRDS("data/Oliver_2018.Rds")
-oliver_sub <- oliver %>% 
+# High res coastline
+map_base <- read_csv("../data_for_shiny/coastline/Svalbard_coastline_wgs84_postproc.csv") %>% 
+  dplyr::rename(lon = longitude, lat = latitude, group = ID) %>% 
+  dplyr::select(lon, lat, group) %>% 
+  mutate(lon = round(lon, 4), 
+         lat = round(lat, 4))
+saveRDS(map_base, "data/map_base.Rds")
+
+
+# Glacier -----------------------------------------------------------------
+
+# Load and process shapefile
+glacier_shp <- raster::shapefile("../analyses/ESA_land_classes/Svalbard_glaciers_wgs84_postproc.shp")
+glacier_fortified <- broom::tidy(glacier_shp, group = "DN") %>% 
+  dplyr::rename(lon = long) %>% 
   filter(lon >= sval_bbox[1], lon <= sval_bbox[2],
          lat >= sval_bbox[3], lat <= sval_bbox[4]) %>% 
-  mutate(val = round(val, 4))
-saveRDS(oliver_sub, "shiny/data/Oliver_2018_sub.Rds")
+  mutate(lon = round(lon, 4),
+         lat = round(lat, 4)) %>% 
+  dplyr::select(lon, lat, group)
+saveRDS(glacier_fortified, "data/glacier_fortified.Rds")
 
-# Trim MHW annual summaries 
-MHW_summary_files <- dir("data", pattern = "MHW_cat_pixel", full.names = T)
-MHW_summary_all <- map_df(MHW_summary_files, readRDS)
-MHW_summary_sub <- MHW_summary_all %>% 
-  filter(lon >= sval_bbox[1], lon <= sval_bbox[2],
-         lat >= sval_bbox[3], lat <= sval_bbox[4])
-saveRDS(MHW_summary_sub, "shiny/data/MHW_summary_sub.Rds")
+
+# Glacier fronts ----------------------------------------------------------
+
+# The CSV files
+front_csv_files <- dir("../data_for_shiny/glacier_frontlines", pattern = ".csv", full.names = T)
+
+# Function for loading and adding year column
+load_front <- function(file_name){
+  dat <- read_csv("../data_for_shiny/glacier_frontlines/Fronts2008_wgs84.csv") %>% 
+    dplyr::rename(lon = longitude, lat = latitude, group = ID) %>% 
+    dplyr::select(lon, lat, group) %>% 
+    mutate(lon = round(lon, 4), 
+           lat = round(lat, 4),
+           year = as.numeric(substring(file_name, 44, 47)))
+}
+
+# One combined file
+glacier_frontlines <- map_df(front_csv_files, load_front)
+saveRDS(glacier_frontlines, "data/glacier_frontlines.Rds")
 
 
 # Create smaller files for shiny ------------------------------------------

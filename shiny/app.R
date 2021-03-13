@@ -8,6 +8,7 @@ library(shiny)
 library(shinydashboard)
 library(shinycssloaders)
 library(shinyWidgets)
+library(shinyBS)
 library(plotly)
 library(dplyr)
 library(tidyr)
@@ -30,20 +31,6 @@ library(ggplot2)
 # Svalbard bbox
 sval_bbox <- c(9, 30, 76, 81)
 
-# MHW colour palette
-# MHW_colours <- c(
-#   "I Moderate" = "#ffc866",
-#   "II Strong" = "#ff6900",
-#   "III Severe" = "#9e0000",
-#   "IV Extreme" = "#2d0000"
-# )
-
-# The empty dataframe for the legend
-# MHW_cat_clim_sub <- data.frame(category = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))
-
-# Oliver 2018 MHW trend data
-# oliver <- readRDS("data/Oliver_2018_sub.Rds") 
-
 # ERA5 annual anomalies
 ERA5_anom <- readRDS("data/ERA5_anom_smol.Rds") %>% 
   pivot_longer(T2m:`snow melt`) %>% 
@@ -63,39 +50,39 @@ ERA5_trend <- readRDS("data/ERA5_trend_smol.Rds") %>%
 # Combine for ease of filtering
 ERA5_ALL <- rbind(ERA5_anom, ERA5_mean, ERA5_trend)
 
-# MHW annual summary data
-# MHW_summary <- readRDS("data/MHW_summary_sub.Rds") %>% 
-#   mutate(year = lubridate::year(t))
+# Glacier
+glacier_fortified <- readRDS("data/glacier_fortified.Rds")
 
-# Glacier shapefile
-# glacier_shp <- shapefile("../analyses/ESA_land_classes/Svalbard_glaciers_wgs84_postproc.shp")
-# saveRDS(glacier_fortified, "data/glacier_fortified.Rds")
-glacier_fortified <- readRDS("data/glacier_fortified.Rds") %>% 
-  filter(lon >= sval_bbox[1], lon <= sval_bbox[2],
-         lat >= sval_bbox[3], lat <= sval_bbox[4])
+# Glacier frontlines
+glacier_frontlines <- readRDS("data/glacier_frontlines.Rds")
 
-# The two map projections
-# inputProj <- "+init=epsg:4326 +proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
-# leafletProj <- "+proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +towgs84=0,0,0,0,0,0,0 +units=m +nadgrids=@null +wktext +no_defs"
-
-# Base map
-map_base <- ggplot2::fortify(maps::map(fill = TRUE, col = "grey80", plot = FALSE)) %>%
-  dplyr::rename(lon = long) %>% 
+# Base maps
+map_base_low <- ggplot2::fortify(maps::map(fill = TRUE, plot = FALSE)) %>%
+  dplyr::rename(lon = long) %>%
   # filter(subregion == "Svalbard")
   filter(lon >= sval_bbox[1], lon <= sval_bbox[2],
        lat >= sval_bbox[3], lat <= sval_bbox[4])
+map_base_hi <- readRDS("data/map_base.Rds")
 
 # Popup coordinates
 pop_coords <- data.frame(site = c("Airport"),
                          lon = c(15.4633742),
                          lat = c(78.2460841))
 
+# Test bit
+df2 <- data.frame(x = c(rep('a', 10), rep('b', 10)),
+                  y = c(rnorm(10), rnorm(10, 3, 1)))
+
+# Picture URLs
+src_1 <-  "https://assets.vogue.com/photos/5a8a3be67cea34278b66789d/master/w_1600%2Cc_limit/02-travel-guide-to-svalbard-islands-norway-north-pole.jpg"
+
+
 # UI ----------------------------------------------------------------------
 
 ui <- dashboardPage(skin = "blue",
                     
                     # The app title
-                    dashboardHeader(disable = FALSE, title = "Troubled waters: environmental change around Svalbard"),
+                    dashboardHeader(disable = FALSE, title = "Map the Science - Svalbard"),
                     
                     # The primary options
                     dashboardSidebar(
@@ -118,7 +105,7 @@ ui <- dashboardPage(skin = "blue",
                         tabItem(tabName = "map",
                                 fluidRow(box(plotlyOutput("map", width = '100%', height = '580px'), width = 12, height = '600px', type = 6, color = "#b0b7be"),
                                          width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE),
-                                fluidRow(textOutput("maply_click")),
+                                # fluidRow(textOutput("maply_click")),
                                 fluidRow(box(plotlyOutput("ts", width = '100%', height = '180px'), width = 12, height = '200px', type = 6, color = "#b0b7be"),
                                          width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE)),
                         
@@ -154,22 +141,6 @@ ui <- dashboardPage(skin = "blue",
 )
 
 
-
-#     bootstrapPage(
-#     tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
-#     leafletOutput("map", width = "100%", height = "100%"),
-#     absolutePanel(top = 10, right = 10,
-#                   sliderInput("year", "Year", min(MHW_summary$year), max(MHW_summary$year),
-#                               value = 2020, step = 1, animate = T, width = '400px', sep = ""
-#                   ),
-#     #               selectInput("colors", "Color Scheme",
-#     #                           rownames(subset(brewer.pal.info, category %in% c("seq", "div")))
-#     #               ),
-#                   checkboxInput("legend", "Show legend", TRUE)
-#     )
-# )
-
-
 # Server ------------------------------------------------------------------
 
 server <- function(input, output, session) {
@@ -196,18 +167,24 @@ server <- function(input, output, session) {
   #                            multiple = FALSE, selected = max(ERA5_ALL$year,na.rm = T), options = list(size = 5))
   picker_year <- sliderInput("year", "Year", min(ERA5_ALL$year, na.rm = T), max(ERA5_ALL$year, na.rm = T),
                              value = max(ERA5_ALL$year, na.rm = T), step = 1, sep = "",
-                             animate = T, animationOptions(interval = 3000))
+                             animate = animationOptions(interval = 2000))
   
   # Glacier layer
-  switch_glacier <- materialSwitch(inputId = "glacier", label = "Glacier layer:", status = "info")
+  switch_glacier <- materialSwitch(inputId = "glacier", label = "Glaciers:", status = "info")
+  
+  # Glacier frontline layer
+  # switch_glacierfront <- materialSwitch(inputId = "glacierfront", label = "Glacier fronts:", status = "info")
   
   # Station layer
-  switch_station <- materialSwitch(inputId = "station", label = "Station layer:", status = "primary")
+  switch_station <- materialSwitch(inputId = "station", label = "Stations:", status = "primary", value = TRUE)
+  
+  # Coastline layer
+  switch_coast <- materialSwitch(inputId = "coast", label = "Hi-res coast:", status = "info", value = TRUE)
   
   # The high level UI controls
   output$sidebar_controls_cat <- renderUI({
     if(input$comparisonMenu == "map"){
-      sidebarMenu(switch_station, switch_glacier, picker_category, picker_layer)
+      sidebarMenu(switch_coast, switch_station, switch_glacier, picker_category, picker_layer)
     } else if(input$comparisonMenu == "about"){
       # Intentionally empty
     } else{
@@ -223,6 +200,44 @@ server <- function(input, output, session) {
       sidebarMenu(picker_year)
     } else { 
     }
+  })
+  
+  
+
+  # Images ------------------------------------------------------------------
+
+  output$picture_1 <- renderText({c('<img src="',src_1,'" width=400px>')})
+  
+
+  # Render Modal ------------------------------------------------------------
+  
+  # Observe to open modal
+  observeEvent(event_data("plotly_click", source = "map_ly"), {
+    event.data <- event_data("plotly_click", source = "map_ly")
+    if(event.data$curveNumber[1] == 2){
+      # shinyBS::toggleModal(session, modalId = "modal", toggle = "open")
+      showModal(
+        modalDialog(size = "l",
+                    fluidPage(
+                      tabsetPanel(
+                        tabPanel(title = "Time series",
+                                 br(),
+                                 renderPlotly({
+                                   plot_ly(df2, x = ~x, y = ~y, type = 'box')
+                                   }),
+                                 hr()),
+                        tabPanel(title = "Photos",
+                                 br(),
+                                 htmlOutput("picture_1"),
+                                 hr()),
+                        tabPanel(title = "Table",
+                                 br(),
+                                 hr())
+                        )
+                      )
+                    )
+        )
+      }
   })
   
   
@@ -246,12 +261,30 @@ server <- function(input, output, session) {
     return(baseData)
   })
   
+  # Reactive map_base for better detail or faster rendering
+  mapBase <- reactive({
+    req(!is.null(input$coast))
+    if(input$coast){
+      mapBase <- map_base_hi
+    } else {
+      mapBase <- map_base_low
+    }
+    return(mapBase)
+  })
+  
+  # Reactive modal plot data
+  modalData <- reactive({
+    event.data <- event_data("plotly_click", source = "map_ly")
+    if(event.data$curveNumber[1] == 2){}
+    
+  })
+  
   
   # Map figure --------------------------------------------------------------
   
   # The map
   output$map <- renderPlotly({
-    req(input$layer); req(input$category); req(!is.null(input$glacier))
+    req(input$layer); req(input$category); req(!is.null(input$glacier)); req(!is.null(input$coast))
     # input <- data.frame(layer = "T2m", category = "Trend") # tester...
     
     # Prep value labels
@@ -288,10 +321,11 @@ server <- function(input, output, session) {
     
     # Prep data
     baseData <- baseData()
+    mapBase <- mapBase()
     
     # Create plot
     map_prep <- ggplot(data = baseData, aes(x = lon, y = lat)) +
-      geom_polygon(data = map_base, aes(group = group, text = NULL), colour = "black", fill = "grey90", alpha = 0.3) +
+      geom_polygon(data = mapBase, aes(group = group, text = NULL), colour = "black", fill = "grey90", alpha = 0.3) +
       geom_tile(aes(fill = value, text = value), alpha = 0.8) +
       coord_equal(xlim = sval_bbox[1:2], ylim = sval_bbox[3:4], expand = F, ratio = 2) +
       labs(x = "Longitude (°E)", y = "Latitude (°N)") +
@@ -314,6 +348,14 @@ server <- function(input, output, session) {
                                           aes(group = group, text = "Glacier"))
     }
 
+    # Add glacier frontline layer
+    # if(input$glacierfront){
+    #   req(input$year)
+    #   if(input$year >= 2008)
+    #   map_plot <- map_plot + geom_polygon(data = filter(glacier_frontlines, year == input$year), fill = NA, colour = "purple",
+    #                                       aes(group = group, text = "Glacier front"))
+    # }
+    
     # Add station layer
     if(input$station){
       map_plot <- map_plot + geom_point(data = pop_coords, aes(text = site),
@@ -357,7 +399,13 @@ server <- function(input, output, session) {
         geom_blank() +
         geom_text(aes(x = 0, y = 0, label = "Click on a map pixel to see the annual time series!")) +
         theme_void()
-    } else {
+    } else if(event.data$curveNumber[1] == 2) {
+      # Blank plot
+      ts_plot <- ggplot() +
+        geom_blank() +
+        geom_text(aes(x = 0, y = 0, label = "Click on a map pixel to see the annual time series!")) +
+        theme_void()
+    } else if(event.data$curveNumber[1] == 1) {
       # input <- data.frame(layer = "T2m", category = "Mean") # tester...
       # event.data <- data.frame(x = 30, y = 75) # Tester...
       # Time series data
@@ -388,7 +436,8 @@ server <- function(input, output, session) {
         geom_point(aes(fill = value, text = value), shape = 21, show.legend = F) +
         geom_smooth(method = "lm", se = F, aes(text = slopeData$text[1])) +
         coord_cartesian(expand = F) +
-        labs(x = NULL, y = paste0(input$layer,"\n",unit_label)) +
+        labs(x = NULL, y = paste0(input$layer,"\n",unit_label), 
+             title = paste0("Longitude: ",slopeData$lon,"; Latitude: ",slopeData$lat)) +
         theme(panel.border = element_rect(fill = NA, colour = "black"))
     }
 
