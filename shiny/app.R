@@ -439,7 +439,7 @@ server <- function(input, output, session) {
   # The map
   output$map <- renderPlotly({
     req(input$layer); req(input$category); req(!is.null(input$glacier)); req(!is.null(input$coast))
-    # input <- data.frame(layer = "T2m", category = "Trend") # tester...
+    # input <- data.frame(layer = "SST", category = "Anomaly", year = 2016) # tester...
     
     # Prep value labels
     if(input$layer %in% c("T2m", "SST")){
@@ -477,6 +477,12 @@ server <- function(input, output, session) {
     baseData <- baseData()
     mapBase <- mapBase()
     
+    # Catch stragglers
+    baseData <- baseData %>% 
+      mutate(value = case_when(value > max(legendData) ~ max(legendData),
+                               value < min(legendData) ~ min(legendData),
+                               TRUE ~ value))
+    
     # Create plot
     map_prep <- ggplot(data = baseData, aes(x = lon, y = lat)) +
       geom_polygon(data = mapBase, aes(group = group, text = NULL), colour = "black", fill = "grey90", alpha = 0.3) +
@@ -505,7 +511,7 @@ server <- function(input, output, session) {
     # Add station layer
     if(input$station){
       map_plot <- map_plot + geom_point(data = pop_coords, aes(text = site),
-                                        shape = 25, size = 10, colour = "black", fill = "hotpink")
+                                        shape = 25, size = 8, colour = "black", fill = "grey50")
     }
     
     # Plotly output
