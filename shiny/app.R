@@ -31,15 +31,15 @@ library(ggplot2)
 sval_bbox <- c(9, 30, 76, 81)
 
 # MHW colour palette
-MHW_colours <- c(
-  "I Moderate" = "#ffc866",
-  "II Strong" = "#ff6900",
-  "III Severe" = "#9e0000",
-  "IV Extreme" = "#2d0000"
-)
+# MHW_colours <- c(
+#   "I Moderate" = "#ffc866",
+#   "II Strong" = "#ff6900",
+#   "III Severe" = "#9e0000",
+#   "IV Extreme" = "#2d0000"
+# )
 
 # The empty dataframe for the legend
-MHW_cat_clim_sub <- data.frame(category = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))
+# MHW_cat_clim_sub <- data.frame(category = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))
 
 # Oliver 2018 MHW trend data
 # oliver <- readRDS("data/Oliver_2018_sub.Rds") 
@@ -195,10 +195,13 @@ server <- function(input, output, session) {
                               selected = unique(ERA5_ALL$name)[1])
   
   # Select years from a dropdown
-  picker_year <- pickerInput(inputId = "year", label = "Year:",
-                             choices = seq(min(ERA5_ALL$year, na.rm = T), max(ERA5_ALL$year, na.rm = T)),
-                             # choices = yearChoices(),
-                             multiple = FALSE, selected = max(ERA5_ALL$year,na.rm = T), options = list(size = 5))
+  # picker_year <- pickerInput(inputId = "year", label = "Year:",
+  #                            choices = seq(min(ERA5_ALL$year, na.rm = T), max(ERA5_ALL$year, na.rm = T)),
+  #                            # choices = yearChoices(),
+  #                            multiple = FALSE, selected = max(ERA5_ALL$year,na.rm = T), options = list(size = 5))
+  picker_year <- sliderInput("year", "Year", min(ERA5_ALL$year, na.rm = T), max(ERA5_ALL$year, na.rm = T),
+                             value = max(ERA5_ALL$year, na.rm = T), step = 1, sep = "",
+                             animate = T, animationOptions(interval = 3000))
   
   # Glacier layer
   switch_glacier <- materialSwitch(inputId = "glacier", label = "Glacier layer:", status = "info")
@@ -251,6 +254,7 @@ server <- function(input, output, session) {
   # The map
   output$map <- renderPlotly({
     req(input$layer); req(input$category); req(!is.null(input$glacier))
+    # input <- data.frame(layer = "T2m", category = "Trend") # tester...
     
     # Prep value labels
     if(input$layer %in% c("T2m", "SST")){
@@ -270,9 +274,19 @@ server <- function(input, output, session) {
     # Legend label
     if(input$category == "Trend"){
       legend_label <- dec_label
+      legend_round <- 2
     } else {
       legend_label <- unit_label
+      legend_round <- 0
+      if(input$layer == "sea ice cover") legend_round <- 2
     }
+    
+    # Static legend units
+    legendData <- ERA5_ALL %>% 
+      dplyr::filter(name == input$layer,
+                    cat == input$category)
+    legendData <- seq(min(legendData$value, na.rm = T), max(legendData$value, na.rm = T), length.out = 6)
+    legendData <- round(c(legendData), legend_round)
     
     # Prep data
     baseData <- baseData()
@@ -289,10 +303,12 @@ server <- function(input, output, session) {
     if(input$category %in% c("Trend", "Anomaly")) {
       map_plot <- map_prep +
         # scale_fill_gradient2(low = "blue", high = "red") # For testing...
-        scale_fill_gradient2(paste0(input$layer,"\n",legend_label), low = "blue", high = "red")
+        scale_fill_gradient2(paste0(input$layer,"\n",legend_label), low = "blue", high = "red", 
+                             limits = c(min(legendData), max(legendData)), breaks = legendData)
     } else {
       map_plot <- map_prep +
-        scale_fill_viridis_c(paste0(input$layer,"\n",legend_label))
+        scale_fill_viridis_c(paste0(input$layer,"\n",legend_label), 
+                             limits = c(min(legendData), max(legendData)), breaks = legendData)
     }
     
     # Add glacier layer
@@ -338,7 +354,7 @@ server <- function(input, output, session) {
         geom_text(aes(x = 0, y = 0, label = "Click on a map pixel to see the annual time series!")) +
         theme_void()
     } else {
-      # input <- data.frame(layer = "T2m") # tester...
+      # input <- data.frame(layer = "T2m", category = "Mean") # tester...
       # event.data <- data.frame(x = 30, y = 75) # Tester...
       # Time series data
       pixelData <- ERA5_ALL %>%

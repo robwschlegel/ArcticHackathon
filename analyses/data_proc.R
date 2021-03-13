@@ -73,7 +73,7 @@ ERA5_trend <- read_csv("../data_for_shiny/ERA5_trends.csv")
 ERA5_trend_smol <- ERA5_trend %>% 
   dplyr::rename(lon = longitude, lat = latitude, name = variable, value = slope) %>% 
   filter(name %in% c("t2m", "sst", "siconc", "msl", "smlt")) %>% 
-  mutate(value = ifelse(name == "smlt", round(value*10*100*100, 4), round(value*10, 4)),
+  mutate(value = ifelse(name == "smlt", round(value*10*100*100, 2), round(value*10, 2)),
          rvalue = round(rvalue, 2),
          pvalue = round(pvalue, 2),
          lon = lon-0.1,
@@ -94,3 +94,23 @@ ERA5_anom_smol %>%
   ggplot(aes(x = lon, y = lat)) +
   geom_tile(aes(fill = T2m))
 
+
+# Station data ------------------------------------------------------------
+
+# Airport data
+station_airport <- read_csv("../data_for_shiny/meto_stations/Svalbard_Airport.csv") %>% 
+  dplyr::select(YEAR:DEC) %>% 
+  pivot_longer(JAN:DEC, names_to = "month", values_to = "T2m") %>% 
+  filter(T2m < 30)
+
+# Ny Alesund data
+station_ny <- read_csv("../data_for_shiny/meto_stations/ny_alesund.csv") %>% 
+  dplyr::select(YEAR:DEC) %>% 
+  pivot_longer(JAN:DEC, names_to = "month", values_to = "T2m") %>% 
+  filter(T2m < 30)
+
+# Airport data
+station_airport <- read_csv("../data_for_shiny/meto_stations/Svalbard_Airport.csv") %>% 
+  dplyr::select(YEAR:DEC) %>% 
+  pivot_longer(JAN:DEC, names_to = "month", values_to = "T2m") %>% 
+  filter(T2m < 30)
