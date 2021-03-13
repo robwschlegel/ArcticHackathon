@@ -10,6 +10,7 @@ from rasterio.warp import calculate_default_transform, reproject, Resampling
 import numpy as np
 from osgeo import gdal, ogr, gdalconst
 import geopandas as gpd
+import matplotlib.pyplot as plt
 
 
 # %%
@@ -105,7 +106,7 @@ shapefile_sorted = shapefile.sort_values(by='area')
 
 # shapefile_sorted_processed = shapefile_sorted[shapefile_sorted.area > 0.5]
 
-centroids = shapefile.centroid
+centroids = shapefile.centroid.reset_index(drop=True)
 
 cx = [centroids[i].xy[0][0] for i in range(0, len(centroids))]
 cy = [centroids[i].xy[1][0] for i in range(0, len(centroids))]
@@ -116,13 +117,17 @@ glaciers_wgs84 = glaciers_wgs84_reader.read(1)
 
 to_keep = []
 
+ax = plt.subplot(111)
+
 for i in range(0, len(cx)):
     
     row, col = glaciers_wgs84_reader.index(cx[i], cy[i])
     
+    plt.scatter(cx[i], cy[i])
+    
     cell = glaciers_wgs84[row, col]
     
-    if cell == 1:
+    if cell == 0:
         
         to_keep.append(True)
         
@@ -131,7 +136,11 @@ for i in range(0, len(cx)):
         to_keep.append(False)
         
         
-shapefile_sorted
+shapefile_sorted['ice'] = to_keep
+
+
+shapefile_sorted.boundary.plot(color='black', ax=ax)
+shapefile_sorted[shapefile_sorted.ice == 1].boundary.plot(color='red', ax=ax)
     
     
 
@@ -146,5 +155,42 @@ shapefile_sorted
 # %%
 
 shapefile_sorted_processed.to_file(output_file_shp_postproc)
+
+
+# %% 
+
+
+from rasterio.mask import mask
+from shapely.geometry import mapping
+
+# extract the geometry in GeoJSON format
+geoms = shapefile.geometry.values # list of shapely geometries
+
+
+for i in range(0, len(geoms)):
+
+    geoms2 = [mapping(geoms[i])]
+    # extract the raster values values within the polygon 
+    with rasterio.open(output_file_reproj) as src:
+         out_image, out_transform = mask(src, geoms2, crop=True)
+         
+    print(np.shape(out_image))
+         
+    vals = out_image.flatten()
+     
+    if np.sum(vals == 0) / len(vals) > 0.1:
+         
+        to_keep.append(True)
+        
+    else:
+        
+        to_keep.append(False)
+        
+        
+shapefile_sorted['ice'] = to_keep
+
+
+shapefile_sorted.boundary.plot(color='black', ax=ax)
+shapefile_sorted[shapefile_sorted.ice == 1].boundary.plot(color='red', ax=ax)
 
 
