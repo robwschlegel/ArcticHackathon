@@ -7,6 +7,10 @@
 
 import rasterio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
+import numpy as np
+from osgeo import gdal, ogr, gdalconst
+import geopandas as gpd
+
 
 # %%
 
@@ -18,9 +22,6 @@ esalc = esalc_reader.read(1)
 
 # save metadata to create a file for glaciers
 meta = esalc_reader.meta
-
-x_positions, y_positions = esalc_reader.xy(np.arange(0, np.shape(esalc)[0]), 
-                                           np.arange(0, np.shape(esalc)[1]))
 
 
 #%% 
@@ -61,6 +62,10 @@ with rasterio.open(output_file) as src:
             
 # %% 
         
+# reproject Svalbard glaciers to WGS84
+output_file_shp = 'C:/Users/Pascal/Desktop/UZH_2020/ArcticHackathon/analyses/'\
+        + 'ESA_land_classes/Svalbard_glaciers_wgs84'
+        
 # create shapefile out of raster
 def raster_polygonize(mask_temp_mp, shp_temp_mp):
             
@@ -77,3 +82,69 @@ def raster_polygonize(mask_temp_mp, shp_temp_mp):
     del src_ds, dst_ds, dst_layer, dst_field 
     
     return dst_layername
+
+raster_polygonize(output_file_reproj, output_file_shp)
+
+
+# %% 
+
+output_file_shp_postproc = 'C:/Users/Pascal/Desktop/UZH_2020/ArcticHackathon/analyses/'\
+        + 'ESA_land_classes/Svalbard_glaciers_wgs84_postproc.shp'
+        
+# post-processing on glacier polygons
+shapefile = gpd.read_file(output_file_shp + ".shp")    
+
+shapefile['area'] = shapefile.area
+
+# get rid of contour polygons
+[shapefile.drop(shapefile['area'].idxmax(), inplace=True) for i in range(4)]
+
+# shapefile_sorted_m = shapefile.to_crs("EPSG:32633")
+
+shapefile_sorted = shapefile.sort_values(by='area')
+
+# shapefile_sorted_processed = shapefile_sorted[shapefile_sorted.area > 0.5]
+
+centroids = shapefile.centroid
+
+cx = [centroids[i].xy[0][0] for i in range(0, len(centroids))]
+cy = [centroids[i].xy[1][0] for i in range(0, len(centroids))]
+
+glaciers_wgs84_reader = rasterio.open(output_file_reproj)
+
+glaciers_wgs84 = glaciers_wgs84_reader.read(1)
+
+to_keep = []
+
+for i in range(0, len(cx)):
+    
+    row, col = glaciers_wgs84_reader.index(cx[i], cy[i])
+    
+    cell = glaciers_wgs84[row, col]
+    
+    if cell == 1:
+        
+        to_keep.append(True)
+        
+    else:
+        
+        to_keep.append(False)
+        
+        
+shapefile_sorted
+    
+    
+
+# shapefile_sorted_degrees = shapefile_sorted.to_crs('EPSG:4326')
+
+# ax = plt.subplot(111)
+
+# shapefile_sorted.boundary.plot(color='black', ax=ax)
+
+# shapefile_sorted_processed.boundary.plot(color='red', ax=ax)
+
+# %%
+
+shapefile_sorted_processed.to_file(output_file_shp_postproc)
+
+
