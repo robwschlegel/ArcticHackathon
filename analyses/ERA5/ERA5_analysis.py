@@ -40,11 +40,11 @@ era_time_anl = pd.to_datetime(np.array(era_var_anl.time))
 era_time_rp_anl = np.repeat(era_time_anl, era_t2m.shape[2] * era_t2m.shape[3])
 era_time_rp_mtl = np.repeat(era_time, era_t2m.shape[2] * era_t2m.shape[3])
 
-lats_anl = np.repeat(lats[:, :, np.newaxis], era_t2m_anl.shape[0], axis=2)
-lons_anl = np.repeat(lons[:, :, np.newaxis], era_t2m_anl.shape[0], axis=2) 
+lats_anl = np.repeat(lats.T[:, :, np.newaxis], era_t2m_anl.shape[0], axis=2).transpose((2, 1, 0))
+lons_anl = np.repeat(lons[:, :, np.newaxis], era_t2m_anl.shape[0], axis=2).transpose((2, 0, 1))
 
-lats_mtl = np.repeat(lats[:, :, np.newaxis], era_t2m.shape[0], axis=2)
-lons_mtl = np.repeat(lons[:, :, np.newaxis], era_t2m.shape[0], axis=2)   
+lats_mtl = np.repeat(lats.T[:, :, np.newaxis], era_t2m.shape[0], axis=2).transpose((2, 1, 0))
+lons_mtl = np.repeat(lons[:, :, np.newaxis], era_t2m.shape[0], axis=2).transpose((2, 0, 1))
 
 
 # %%
@@ -53,7 +53,7 @@ lons_mtl = np.repeat(lons[:, :, np.newaxis], era_t2m.shape[0], axis=2)
 # annual
 # anomalies
 
-variables = ['t2m', 'sst', 'siconc', 'z']
+variables = ['t2m', 'sst', 'siconc', 'z', 'msl', 'hmax', 'smlt']
 
 
 for i, variable in enumerate(variables):
@@ -127,14 +127,19 @@ def linreg_idx(A_arr, cm):
     return corrcoeff
 
 
+
+
+# %% decadal trends
+
 def linregress_time(A_arr):
-    
-    A_arr -= 273.15
+
     x = np.arange(0, len(A_arr))
     
     mask = [(~np.isnan(A_arr)) & (~np.isnan(x))]
     results = linregress(x[mask], A_arr[mask])
     y = results.slope * x + results.intercept
+    
+    slope = results.slope
     
     rvalue = results.rvalue 
     
@@ -144,4 +149,33 @@ def linregress_time(A_arr):
     
     ratio = variation / residuals 
     
-    return ratio, variation, rvalue
+    return slope, rvalue, residuals, viariation, ratio 
+
+
+for i, variable in enumerate(variables):
+    
+    ev = np.array(era[variable])[:, 0, :, :]
+    
+    ev_anl = era[variable].resample(time='1Y').mean()
+    
+    ev_anl_rp =  np.array(ev_anl[variable])[:, 0, :, :]
+    
+    slopes, rvalues, residualss, \
+        viariations, ratios  = np.apply_along_axis(linregress_time, 0, ev)
+        
+    if i == 0:
+        
+        trends = pd.DataFrame({'longitude': lons_anl.flatten(), 
+                               'latitude': lats_anl.flatten(),
+                               'time': era_time_rp_anl,
+                               't2m': era_var_mtl_means_rs.flatten()})
+        
+    else:
+        
+        monthly_means[variable] = era_var_mtl_means_rs.flatten()
+        
+        
+    
+    
+    
+    
