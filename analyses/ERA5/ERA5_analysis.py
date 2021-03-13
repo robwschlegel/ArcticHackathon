@@ -17,6 +17,7 @@ import os
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import scipy.stats 
+from scipy.stats import linregress
 
 era = xr.open_dataset("H:/Hack_the_Arctic/ERA5/ERA5_Svalbard.nc")
 
@@ -136,21 +137,45 @@ def linregress_time(A_arr):
     x = np.arange(0, len(A_arr))
     
     mask = [(~np.isnan(A_arr)) & (~np.isnan(x))]
-    results = linregress(x[mask], A_arr[mask])
-    y = results.slope * x + results.intercept
     
-    slope = results.slope
-    
-    rvalue = results.rvalue 
-    
-    residuals = np.nanmean(np.abs(y - A_arr))
-    
-    variation = y[-1] - y[0]
-    
-    ratio = variation / residuals 
-    
-    return slope, rvalue, residuals, viariation, ratio 
+    if np.shape(x[mask])[0] == 0:
 
+        slope = np.nan
+        rvalue = np.nan
+        residuals = np.nan
+        variation = np.nan
+        ratio = np.nan
+        pvalue = np.nan
+        
+    else:
+    
+        results = linregress(x[mask], A_arr[mask])
+    
+        y = results.slope * x + results.intercept
+        
+        slope = results.slope
+        
+        rvalue = results.rvalue 
+        
+        pvalue = results.pvalue
+        
+        residuals = np.nanmean(np.abs(y - A_arr))
+        
+        variation = y[-1] - y[0]
+        
+        ratio = variation / residuals 
+    
+    
+    return slope, rvalue, residuals, variation, ratio, pvalue
+
+
+slopes = []
+rvalues = []
+residuals = []
+variations = []
+ratios = []
+varbls = []
+pvalues = []
 
 for i, variable in enumerate(variables):
     
@@ -158,24 +183,25 @@ for i, variable in enumerate(variables):
     
     ev_anl = era[variable].resample(time='1Y').mean()
     
-    ev_anl_rp =  np.array(ev_anl[variable])[:, 0, :, :]
+    ev_anl_rp = np.array(ev_anl)[:, 0, :, :]
     
-    slopes, rvalues, residualss, \
-        viariations, ratios  = np.apply_along_axis(linregress_time, 0, ev)
-        
-    if i == 0:
-        
-        trends = pd.DataFrame({'longitude': lons_anl.flatten(), 
-                               'latitude': lats_anl.flatten(),
-                               'time': era_time_rp_anl,
-                               't2m': era_var_mtl_means_rs.flatten()})
-        
-    else:
-        
-        monthly_means[variable] = era_var_mtl_means_rs.flatten()
-        
-        
+    s, r, rd, vrs, rts, pv = np.apply_along_axis(linregress_time, 0, ev)
     
-    
-    
-    
+    for i in range(0, len(s.flatten())):
+        slopes.append(s.flatten()[i])
+        rvalues.append(r.flatten()[i])
+        residuals.append(rd.flatten()[i])
+        variations.append(vrs.flatten()[i])
+        ratios.append(rts.flatten()[i])
+        pvalues.append(pv.flatten()[i])
+        varbls.append(variable)
+        
+trends = pd.DataFrame({'longitude': list(lons.flatten()) * len(variables),
+                       'latitude': list(lats.flatten()) * len(variables),
+                       'variable': varbls,
+                       'slope': slopes, 'rvalue': rvalues, 'mean_abs_residual': residuals,
+                       'pvalue': pvalues,
+                       'variations_ylast-first': variations, 
+                       'ratio_variation_div_residuals': ratios})
+
+trends.to_csv(github_repo + 'ERA5_trends.csv')
