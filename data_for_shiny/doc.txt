@@ -1,0 +1,80 @@
+# # Documentation
+
+# # # Datasets
+
+# # # # Raster data 
+
+- ECMWF Re-Analysis (ERA5; 1979-2020, 25km resolution, annual means):
+	- 2-meter air temperature (°C)
+	- Sea surface temperature(°C)
+	- Sea ice cover (%)
+        - Mean sea level pressure (hPa)
+        - Snow melt (m of water equivalent)
+
+- CryoSat-2 and Envisat products (2002-2021, 25km resolution, monthly means)
+	- Sea ice thickness (m)
+
+
+# # # # Vector data
+
+- European Space Agency (ESA) Climate Change Initiative (CCI) land cover products (2018, 250m resolution):
+	- Permanent snow and ice mask
+	- Coastline 
+
+- Sentinel-2 and Landsat-8 products (2008-2020, 30m resolution):
+	- Annual frontlines of marine-terminating glaciers
+
+
+# # # # Point data
+
+- Global Historical Climatology Network (GHCN; 1932-2021; monthly means):
+	- 2-meter air temperature (°C)
+
+- High Arctic climatological dataset of the Polish Polar Station Hornsund (1979-2018, daily means):
+	- 2-meter air temperature (°C)
+	- Relative humidity (%)
+	- Precipitation (mm)
+
+
+# # # Data Analysis
+
+The above-presented variables are visualised through three main statistics:
+	- annual means 
+	- Anomaly from 1979-2000 mean
+	- 1979-2021 trend 
+
+
+# # # Graphical user interface
+
+- Category: choose one of the three statistics presented in the Data Analysis section.
+- Data layer: choose one of the variables presented in the Datasets section. 
+- Glacier layer: activate the mask for permanent snow and ice.
+- Station layer: activate the visualisation of time series at weather station locations. 
+- Time evolution: move the scroll button to visualise the evolution of the selected variable and analysis. 
+
+Options in the top-right corner will facilitate your movements across the map by resetting the axes, zooming in and out or scaling automatically. The current map can also be downloaded as a .png file.  
+
+Hovering over the map with the mouse, the value on the pointed data cell will be displayed. By left-clicking a given point, the time series of annual means at the associated cell will be plotted and analysed through a linear regression. 
+The slope, correlation value and p-value of the latter will appear by hovering over the blue line.
+   
+
+
+# # Contributors
+
+Robert Schlegel, FACEITArctic, ChocTeamLov IMEV_mer
+Adrien Wehrlé, University of Zurich
+
+
+# # References
+
+Copernicus Climate Change Service (C3S) (2017): ERA5: Fifth generation of ECMWF atmospheric reanalyses of the global climate . Copernicus Climate Change Service Climate Data Store (CDS), March 12 2021. https://cds.climate.copernicus.eu/cdsapp#!/home
+
+Moholdt, G., Maton, J., Majerska, M., & Kohler, J. (2021). Annual frontlines of marine-terminating glaciers on Svalbard [Data set]. Norwegian Polar Institute. https://doi.org/10.21334/npolar.2021.d60a919a
+
+ESA. Land Cover CCI Product User Guide Version 2. Tech. Rep. (2017). Available at: maps.elie.ucl.ac.be/CCI/viewer/download/ESACCI-LC-Ph2-PUGv2_2.0.pdf
+
+Menne, M.J., C.N. Williams, B.E. Gleason, J.J. Rennie, and J.H. Lawrimore, 2018: The Global Historical Climatology Network Monthly Temperature Dataset, Version 4. J. Climate, 31, 9835–9854, doi:doi.org/10.1175/JCLI-D-18-0094.1.
+
+Wawrzyniak, Tomasz; Osuch, Marzena (2019): A consistent High Arctic climatological dataset (1979-2018) of the Polish Polar Station Hornsund (SW Spitsbergen, Svalbard). PANGAEA, https://doi.org/10.1594/PANGAEA.909042
+
+ESA Sea Ice CCI project team; Sandven, S. (2016): ESA Sea Ice Climate Change Initiative (Sea Ice CCI) Dataset Collection. Centre for Environmental Data Analysis, date of citation. http://catalogue.ceda.ac.uk/uuid/5e789087d4e847308a39b3fe5b26e281
