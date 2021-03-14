@@ -1,4 +1,6 @@
 # shiny/app.R
+# Author: Robert Schlegel
+# Date: 2021-03-14
 # This script contains all of the code needed to run the Svalbard shiny app
 
 
@@ -6,7 +8,6 @@
 
 library(shiny)
 library(shinydashboard)
-library(shinycssloaders)
 library(shinyWidgets)
 library(shinyBS)
 library(plotly)
@@ -15,13 +16,6 @@ library(dplyr)
 library(tidyr)
 library(lubridate)
 library(ggplot2)
-# library(readr)
-# library(raster)
-# library(rgdal)
-# library(broom)
-# library(leaflet)
-# library(rasterly)
-# library(RColorBrewer)
 
 
 # Data --------------------------------------------------------------------
@@ -53,9 +47,6 @@ ERA5_ALL <- rbind(ERA5_anom, ERA5_mean, ERA5_trend)
 
 # Glacier
 glacier_fortified <- readRDS("data/glacier_fortified.Rds")
-
-# Glacier frontlines
-glacier_frontlines <- readRDS("data/glacier_frontlines.Rds")
 
 # Base maps
 map_base_low <- ggplot2::fortify(maps::map(fill = TRUE, plot = FALSE)) %>%
@@ -89,10 +80,6 @@ station_ny <- read.csv("data/ny_alesund.csv") %>%
          date = paste0(YEAR,"-",month,"-01"),
          date = as.Date(date, format = "%Y-%B-%d"))
 
-# Test bit
-df2 <- data.frame(x = c(rep('a', 10), rep('b', 10)),
-                  y = c(rnorm(10), rnorm(10, 3, 1)))
-
 # Picture URLs
 src_airport <- "https://upload.wikimedia.org/wikipedia/commons/8/8d/Svalbard_Airport%2C_Longyear_1.jpg"
 src_ny <- "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Ny-%C3%85lesund_2013_06_07_3603.jpg/1200px-Ny-%C3%85lesund_2013_06_07_3603.jpg"
@@ -120,22 +107,14 @@ ui <- dashboardPage(skin = "blue",
                     dashboardBody(
                       tabItems(
                         
-
+                        
                         # Map tab -----------------------------------------------------------------
                         
                         tabItem(tabName = "map",
                                 fluidRow(box(plotlyOutput("map", width = '100%', height = '580px'), width = 12, height = '600px', type = 6, color = "#b0b7be"),
                                          width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE),
-                                # fluidRow(textOutput("maply_click")),
                                 fluidRow(box(plotlyOutput("ts", width = '100%', height = '180px'), width = 12, height = '200px', type = 6, color = "#b0b7be"),
                                          width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE)),
-                        
-                        
-                        # Tables ------------------------------------------------------------------
-                        
-                        # tabItem(tabname = "tables",
-                        #         # tableOutput("resultsKable"),
-                        #         h2("test")),
                         
                         
                         # App explanation ---------------------------------------------------------
@@ -256,6 +235,12 @@ ui <- dashboardPage(skin = "blue",
 server <- function(input, output, session) {
   
   
+  # Images ------------------------------------------------------------------
+  
+  output$picture_airport <- renderText({c('<img src="',src_airport,'" width=600px>')})
+  output$picture_ny <- renderText({c('<img src="',src_ny,'" width=600px>')})
+  
+  
   # Render UI ---------------------------------------------------------------
   
   # Select broad category
@@ -271,20 +256,13 @@ server <- function(input, output, session) {
                               selected = unique(ERA5_ALL$name)[1])
   
   # Select years from a dropdown
-  # picker_year <- pickerInput(inputId = "year", label = "Year:",
-  #                            choices = seq(min(ERA5_ALL$year, na.rm = T), max(ERA5_ALL$year, na.rm = T)),
-  #                            # choices = yearChoices(),
-  #                            multiple = FALSE, selected = max(ERA5_ALL$year,na.rm = T), options = list(size = 5))
   picker_year <- sliderInput("year", "Year", min(ERA5_ALL$year, na.rm = T), max(ERA5_ALL$year, na.rm = T),
                              value = max(ERA5_ALL$year, na.rm = T), step = 1, sep = "",
                              animate = animationOptions(interval = 2000))
   
   # Glacier layer
   switch_glacier <- materialSwitch(inputId = "glacier", label = "Glaciers:", status = "info")
-  
-  # Glacier frontline layer
-  # switch_glacierfront <- materialSwitch(inputId = "glacierfront", label = "Glacier fronts:", status = "info")
-  
+
   # Station layer
   switch_station <- materialSwitch(inputId = "station", label = "Stations:", status = "primary", value = TRUE)
   
@@ -311,13 +289,6 @@ server <- function(input, output, session) {
     } else { 
     }
   })
-  
-  
-
-  # Images ------------------------------------------------------------------
-
-  output$picture_airport <- renderText({c('<img src="',src_airport,'" width=600px>')})
-  output$picture_ny <- renderText({c('<img src="',src_ny,'" width=600px>')})
   
 
   # Render Modal ------------------------------------------------------------
@@ -380,7 +351,7 @@ server <- function(input, output, session) {
                                  )
                         )
                     )
-        )
+              )
         )
       }
   })
@@ -392,10 +363,8 @@ server <- function(input, output, session) {
   baseData <- reactive({
     req(input$layer); req(input$category)
       baseData <- ERA5_ALL %>% 
-        # dplyr::filter(year == 1990, name == "SST", cat == "Anomaly") # For testing...
         dplyr::filter(name == input$layer,
-                      cat == input$category) #%>% 
-        # na.omit()
+                      cat == input$category)
       if(input$category %in% c("Mean", "Anomaly")){
         req(input$year)
         baseData <- baseData %>% 
@@ -439,7 +408,6 @@ server <- function(input, output, session) {
   # The map
   output$map <- renderPlotly({
     req(input$layer); req(input$category); req(!is.null(input$glacier)); req(!is.null(input$coast))
-    # input <- data.frame(layer = "SST", category = "Anomaly", year = 2016) # tester...
     
     # Prep value labels
     if(input$layer %in% c("T2m", "SST")){
@@ -470,7 +438,8 @@ server <- function(input, output, session) {
     legendData <- ERA5_ALL %>% 
       dplyr::filter(name == input$layer,
                     cat == input$category)
-    legendData <- seq(min(legendData$value, na.rm = T), max(legendData$value, na.rm = T), length.out = 6)
+    legendData <- seq(min(legendData$value, na.rm = T), 
+                      max(legendData$value, na.rm = T), length.out = 6)
     legendData <- round(c(legendData), legend_round)
     
     # Prep data
@@ -558,12 +527,9 @@ server <- function(input, output, session) {
         geom_text(aes(x = 0, y = 0, label = "Click on a map pixel to see the annual time series!")) +
         theme_void()
     } else if(event.data$curveNumber[1] == 1) {
-      # input <- data.frame(layer = "T2m", category = "Mean") # tester...
-      # event.data <- data.frame(x = 30, y = 75) # Tester...
-      # Time series data
       
+      # Time series data
       pixelData <- ERA5_ALL %>%
-        # data.frame() %>% 
         dplyr::filter(name == input$layer,
                cat == "Anomaly",
                lon == event.data$x[1],
@@ -571,7 +537,6 @@ server <- function(input, output, session) {
       
       # Linear model stats
       slopeData <- ERA5_ALL %>%
-        # data.frame() %>% 
         dplyr::filter(name == input$layer[1],
                       cat == "Trend",
                       lon == event.data$x[1],
@@ -594,28 +559,8 @@ server <- function(input, output, session) {
     }
 
     # Plotly output
-    ggplotly(ts_plot, tooltip = "text", dynamicTicks = F) #%>% 
-      # style(hoverinfo = "skip", traces = 0)
+    ggplotly(ts_plot, tooltip = "text", dynamicTicks = F)
   })
-  
-
-  # Test bits ---------------------------------------------------------------
-
-  # output$maply_click <- renderText({
-  #   event.data <- event_data(event = "plotly_click", source = "map_ly")
-  #   if (is.null(event.data)) {
-  #     print("Click to see the link of the point.")
-  #   } else { 
-  #     print(event.data)
-  #   }
-  # })
-  
-  # observe({
-  #   event_click <- event_data("plotly_click", source = "map_ly")
-  #   # hidden_labels <- relayout$hiddenlabels
-  #   print(event_click)
-  # })
-  
   
 }
 

@@ -1,7 +1,10 @@
 # analyses/data_proc.R
+# Author: Robert Schlegel
+# Date: 2021-03-14
 # This script preps results etc. for use in the shiny app
 # Note that this script is intended to be run from the shiny folder as the working directory
 # This is because this script was being run while also developing the shiny script
+
 
 # Setup -------------------------------------------------------------------
 
@@ -73,8 +76,7 @@ ERA5_anom_smol <- ERA5_anom %>%
          lon = round(lon, 2),
          lat = round(lat, 2)) %>% 
   dplyr::select(lon, lat, year, t2m, sst, siconc, msl, smlt) %>% 
-  `colnames<-`(c("lon", "lat", "year", "T2m", "SST", "sea ice cover", "MSLP", "snow melt")) #%>% 
-  # na.omit() 
+  `colnames<-`(c("lon", "lat", "year", "T2m", "SST", "sea ice cover", "MSLP", "snow melt"))
 saveRDS(ERA5_anom_smol, "data/ERA5_anom_smol.Rds")
 
 # ERA5 annual means
@@ -91,8 +93,7 @@ ERA5_mean_smol <- ERA5_mean %>%
          lon = round(lon, 2),
          lat = round(lat, 2)) %>% 
   dplyr::select(lon, lat, year, t2m, sst, siconc, msl, smlt) %>% 
-  `colnames<-`(c("lon", "lat", "year", "T2m", "SST", "sea ice cover", "MSLP", "snow melt")) #%>% 
-  # na.omit() 
+  `colnames<-`(c("lon", "lat", "year", "T2m", "SST", "sea ice cover", "MSLP", "snow melt"))
 saveRDS(ERA5_mean_smol, "data/ERA5_mean_smol.Rds")
 
 # ERA5 annual trends
