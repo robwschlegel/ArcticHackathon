@@ -126,8 +126,8 @@ ui <- dashboardPage(skin = "blue",
                                          h3(tags$b("Contributors")),
                                          p(tags$div(
                                            tags$ul(
-                                             tags$li("Robert Schlegel (@FACEITArctic, @ChocTeamLov @IMEV_mer): GUI"),
-                                             tags$li("Adrien Wehrlé (University of Zurich): Data analysis")
+                                             tags$li("Robert Schlegel: GUI; Twitter: @robwschlegel, @FACEITArctic, @ChocTeamLov, @IMEV_mer; GitHub: robwschlegel"),
+                                             tags$li("Adrien Wehrlé: Data analysis; Twitter: @AdrienWehrle; GitHub: AdrienWehrle")
                                            )
                                            )
                                          ),
