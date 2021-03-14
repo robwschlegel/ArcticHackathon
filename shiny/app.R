@@ -111,7 +111,7 @@ ui <- dashboardPage(skin = "blue",
                         # Map tab -----------------------------------------------------------------
                         
                         tabItem(tabName = "map",
-                                fluidRow(box(plotlyOutput("map", width = '100%', height = '580px'), width = 12, height = '600px', type = 6, color = "#b0b7be"),
+                                fluidRow(box(plotlyOutput("map", width = '100%', height = '560px'), width = 12, height = '580px', type = 6, color = "#b0b7be"),
                                          width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE),
                                 fluidRow(box(plotlyOutput("ts", width = '100%', height = '180px'), width = 12, height = '200px', type = 6, color = "#b0b7be"),
                                          width = 12, status = "danger", solidHeader = TRUE, collapsible = FALSE)),
