@@ -1,5 +1,5 @@
 # ArcticHackathon
-Source code for a project submitted to the [ #HackTheArctic Hackathon](https://hackthearctic.com/).
+Source code for a [project](https://app.hackjunction.com/projects/hack-the-arctic/view/6038fe269f3b770044b01e7c) submitted to the [ #HackTheArctic Hackathon](https://hackthearctic.com/).
 
 Bridging the gap between the Science produced by researchers and the general public is currently an important challenge and needs to be addressed. Here, we present a simple and clear [shiny app](https://robert-schlegel.shinyapps.io/svalbard/) to "Map the Science" currently undertaken around Svalbard, making it possible to interact with those data.
 
